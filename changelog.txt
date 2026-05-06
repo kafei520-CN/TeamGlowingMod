@@ -1,0 +1,23 @@
+1.12.x Changelog
+1.0-pre
+=======
+ - 1.0-pre-17 Enable promotion from actions
+ - 1.0-pre-16 Fix MDK run configs, and add fix for IntelliJ issues.
+ - 1.0-pre-15 Fix infinite recursion in Biome Dict error message (#10725)
+ - 1.0-pre-14 Migrate to Github Actions
+ - 1.0-pre-13 Don't download log4j-slf4j18-impl (#8293)
+ - 1.0-pre-12 Update Installer to 2.1.+ and fix logging on server (#8286)
+              Update references of files.mcf.net/maven to maven.mcf.net
+ - 1.0-pre-11 [#8281] Fix the output on Linux in the terminal. (#8282)
+ - 1.0-pre-10 Fix an issue with the version number generation as well as the logging pattern output. (#8279)
+ - 1.0-pre-9  [CVE-2021-44228]: Update Log4J to fix the security issue inside it. (#8275)
+ - 1.0-pre-8  Only apply the MC-68754 fix on Windows, closes #7546 (#7549)
+              MC-68754 only affects Minecraft on Windows, as per the comments on Mojang's bug tracker, and the LWJGL bug report (https://github.com/LWJGL/lwjgl/issues/142). This change simply checks if the OS running Minecraft is Windows before applying the fix. This was tested on Windows 10, MacOS Mojave, and Lubuntu (5.8.0-31), and all platforms allowed the window to be resized as expected after exiting fullscreen. As the MC-68754 fix was the cause of #7546, this issue is fixed by applying this patch.
+ - 1.0-pre-7  Fixed the universal jar not having a main class or classpath, for server installations.
+ - 1.0-pre-6  Updated License headers
+              (cherry picked from commit 7b852e5cab5f4114f0efe7956666e68521bed6f3)
+ - 1.0-pre-5  Fix installer json data entry format.
+ - 1.0-pre-4  Skip userdev remap as we don't have any yet.
+ - 1.0-pre-3  Fix J13 ambiguous reference and JenkinsFile skipping a step.
+ - 1.0-pre-2  Migrate to FG3
+ - 1.0-pre-1  Fix CME when removing ticket managers (#5861)

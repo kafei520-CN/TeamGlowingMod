@@ -1,0 +1,16 @@
+[
+{
+  "modid": "teamglowing",
+  "name": "TeamGlowing",
+  "description": "TeamGlowing placeholder mod.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Kafei"],
+  "credits": "The Forge and FML guys, for making this example",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
