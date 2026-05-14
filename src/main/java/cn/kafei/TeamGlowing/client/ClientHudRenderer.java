@@ -65,8 +65,6 @@ public final class ClientHudRenderer {
         int barY = screenHeight - BAR_Y_OFFSET;
         boolean showNames = client.options.playerListKey.isPressed();
 
-        context.fill(barLeft, barY + 3, barLeft + BAR_WIDTH, barY + 4, 0xC0101010);
-
         int rendered = 0;
         for (TeamLocatorEntry entry : entries) {
             if (rendered >= MAX_DISPLAY) {
