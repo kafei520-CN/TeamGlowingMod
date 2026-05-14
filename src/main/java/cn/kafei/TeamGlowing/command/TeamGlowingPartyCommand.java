@@ -6,216 +6,171 @@ import cn.kafei.TeamGlowing.party.Party;
 import cn.kafei.TeamGlowing.party.PartyInfo;
 import cn.kafei.TeamGlowing.party.PartyManager;
 import cn.kafei.TeamGlowing.persistence.PartyPersistence;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import net.minecraft.command.CommandBase;
-import net.minecraft.command.CommandException;
-import net.minecraft.command.ICommandSender;
-import net.minecraft.command.WrongUsageException;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.TextComponentString;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import net.minecraft.command.CommandSource;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.HoverEvent;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
-public class TeamGlowingPartyCommand extends CommandBase
-{
-    private final PartyManager partyManager;
-    private final Localization localization;
-    private final PartyPersistence persistence;
-
-    public TeamGlowingPartyCommand(PartyManager partyManager, Localization localization, PartyPersistence persistence)
-    {
-        this.partyManager = partyManager;
-        this.localization = localization;
-        this.persistence = persistence;
+public final class TeamGlowingPartyCommand {
+    private TeamGlowingPartyCommand() {
     }
 
-    @Override
-    public String getName()
-    {
-        return "teamglow";
+    public static void register(CommandDispatcher<ServerCommandSource> dispatcher, PartyManager partyManager, Localization localization, PartyPersistence persistence) {
+        dispatcher.register(CommandManager.literal("teamglow")
+            .requires(source -> true)
+            .then(CommandManager.literal("create")
+                .then(CommandManager.argument("partyName", StringArgumentType.word())
+                    .executes(context -> handleCreate(context, partyManager, localization, persistence))))
+            .then(CommandManager.literal("invite")
+                .then(CommandManager.argument("player", StringArgumentType.word())
+                    .suggests((context, builder) -> CommandSource.suggestMatching(
+                        context.getSource().getServer().getPlayerManager().getPlayerNames(), builder))
+                    .executes(context -> handleInvite(context, partyManager, localization, persistence))))
+            .then(CommandManager.literal("accept")
+                .executes(context -> handleAccept(context, partyManager, localization, persistence)))
+            .then(CommandManager.literal("reject")
+                .executes(context -> handleReject(context, partyManager, localization, persistence)))
+            .then(CommandManager.literal("leave")
+                .executes(context -> handleLeave(context, partyManager, localization, persistence)))
+            .then(CommandManager.literal("info")
+                .executes(context -> handleInfo(context, partyManager, localization))));
     }
 
-    @Override
-    public String getUsage(ICommandSender sender)
-    {
-        return "/teamglow <create|invite|accept|leave|info> ...";
-    }
+    private static int handleCreate(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String partyName = StringArgumentType.getString(context, "partyName");
 
-    @Override
-    public int getRequiredPermissionLevel()
-    {
-        return 0;
-    }
-
-    @Override
-    public boolean checkPermission(MinecraftServer server, ICommandSender sender)
-    {
-        return true;
-    }
-
-    @Override
-    public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException
-    {
-        EntityPlayerMP player = getCommandSenderAsPlayer(sender);
-        if (args.length == 0)
-        {
-            throw new WrongUsageException(this.getUsage(sender));
-        }
-
-        String action = args[0].toLowerCase(Locale.ROOT);
-        if ("create".equals(action))
-        {
-            this.handleCreate(player, args);
-            return;
-        }
-
-        if ("invite".equals(action))
-        {
-            this.handleInvite(server, player, args);
-            return;
-        }
-
-        if ("accept".equals(action))
-        {
-            this.handleAccept(player);
-            return;
-        }
-
-        if ("leave".equals(action))
-        {
-            this.handleLeave(player);
-            return;
-        }
-
-        if ("info".equals(action))
-        {
-            this.handleInfo(player);
-            return;
-        }
-
-        throw new WrongUsageException(this.getUsage(sender));
-    }
-
-    private void handleCreate(EntityPlayerMP player, String[] args) throws CommandException
-    {
-        if (args.length < 2)
-        {
-            throw new WrongUsageException("/teamglow create <partyName>");
-        }
-
-        try
-        {
-            Party party = this.partyManager.createParty(PartyManager.getPlayerName(player), args[1]);
-            this.persistence.save(this.partyManager);
-            player.sendMessage(new TextComponentString(this.localization.translate(player, "party.created", party.name)));
-        }
-        catch (IllegalStateException | IllegalArgumentException exception)
-        {
-            throw new CommandException(this.localization.translate(player, exception.getMessage()));
+        try {
+            Party party = partyManager.createParty(PartyManager.getPlayerName(player), partyName);
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.created", party.name)), false);
+            return 1;
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
         }
     }
 
-    private void handleInvite(MinecraftServer server, EntityPlayerMP player, String[] args) throws CommandException
-    {
-        if (args.length < 2)
-        {
-            throw new WrongUsageException("/teamglow invite <player>");
+    private static int handleInvite(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String targetName = StringArgumentType.getString(context, "player");
+        ServerPlayerEntity target = context.getSource().getServer().getPlayerManager().getPlayer(targetName);
+        if (target == null) {
+            throw error("Player not found");
         }
 
-        EntityPlayerMP target = getPlayer(server, player, args[1]);
-        if (PartyManager.getPlayerName(target).equals(PartyManager.getPlayerName(player)))
-        {
-            throw new CommandException(this.localization.translate(player, "party.error.cannot_invite_self"));
+        if (PartyManager.getPlayerName(target).equalsIgnoreCase(PartyManager.getPlayerName(player))) {
+            throw error(localization.translate(player, "party.error.cannot_invite_self"));
         }
 
-        try
-        {
-            this.partyManager.invite(PartyManager.getPlayerName(player), PartyManager.getPlayerName(target));
-            this.persistence.save(this.partyManager);
-            PartyInfo info = this.partyManager.getPartyInfo(PartyManager.getPlayerName(player));
-            player.sendMessage(new TextComponentString(this.localization.translate(player, "party.invited_sender", target.getName(), info.name)));
-            target.sendMessage(new TextComponentString(this.localization.translate(target, "party.invited_target", player.getName(), info.name)));
-        }
-        catch (IllegalStateException exception)
-        {
-            throw new CommandException(this.localization.translate(player, exception.getMessage()));
+        try {
+            partyManager.invite(PartyManager.getPlayerName(player), PartyManager.getPlayerName(target));
+            persistence.save(partyManager);
+            PartyInfo info = partyManager.getPartyInfo(PartyManager.getPlayerName(player));
+            player.sendMessage(Text.literal(localization.translate(player, "party.invited_sender", target.getName().getString(), info.name)), false);
+            sendInviteMessage(target, localization, player.getName().getString(), info.name);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
         }
     }
 
-    private void handleAccept(EntityPlayerMP player) throws CommandException
-    {
-        try
-        {
-            String partyName = this.partyManager.acceptInvite(PartyManager.getPlayerName(player));
-            this.persistence.save(this.partyManager);
-            player.sendMessage(new TextComponentString(this.localization.translate(player, "party.joined", partyName)));
-        }
-        catch (IllegalStateException exception)
-        {
-            throw new CommandException(this.localization.translate(player, exception.getMessage()));
+    private static int handleAccept(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        try {
+            String partyName = partyManager.acceptInvite(PartyManager.getPlayerName(player));
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.joined", partyName)), false);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
         }
     }
 
-    private void handleLeave(EntityPlayerMP player) throws CommandException
-    {
-        try
-        {
-            LeaveResult leaveResult = this.partyManager.leave(PartyManager.getPlayerName(player));
-            this.persistence.save(this.partyManager);
-            if (leaveResult.disbanded)
-            {
-                player.sendMessage(new TextComponentString(this.localization.translate(player, "party.left_disbanded", leaveResult.partyName)));
-                return;
+    private static int handleReject(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        try {
+            String partyName = partyManager.rejectInvite(PartyManager.getPlayerName(player));
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.rejected", partyName)), false);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
+        }
+    }
+
+    private static int handleLeave(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+
+        try {
+            LeaveResult leaveResult = partyManager.leave(PartyManager.getPlayerName(player));
+            persistence.save(partyManager);
+            if (leaveResult.disbanded) {
+                player.sendMessage(Text.literal(localization.translate(player, "party.left_disbanded", leaveResult.partyName)), false);
+                return 1;
             }
 
-            if (leaveResult.newLeaderName != null)
-            {
-                player.sendMessage(new TextComponentString(this.localization.translate(player, "party.left_new_leader", leaveResult.partyName, leaveResult.newLeaderName)));
-                return;
+            if (leaveResult.newLeaderName != null) {
+                player.sendMessage(Text.literal(localization.translate(player, "party.left_new_leader", leaveResult.partyName, leaveResult.newLeaderName)), false);
+                return 1;
             }
 
-            player.sendMessage(new TextComponentString(this.localization.translate(player, "party.left", leaveResult.partyName)));
-        }
-        catch (IllegalStateException exception)
-        {
-            throw new CommandException(this.localization.translate(player, exception.getMessage()));
+            player.sendMessage(Text.literal(localization.translate(player, "party.left", leaveResult.partyName)), false);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
         }
     }
 
-    private void handleInfo(EntityPlayerMP player)
-    {
-        PartyInfo info = this.partyManager.getPartyInfo(PartyManager.getPlayerName(player));
-        if (info == null)
-        {
-            player.sendMessage(new TextComponentString(this.localization.translate(player, "party.info.none")));
-            return;
+    private static int handleInfo(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        PartyInfo info = partyManager.getPartyInfo(PartyManager.getPlayerName(player));
+        if (info == null) {
+            player.sendMessage(Text.literal(localization.translate(player, "party.info.none")), false);
+            return 0;
         }
 
-        player.sendMessage(new TextComponentString(this.localization.translate(player, "party.info.name", info.name)));
-        player.sendMessage(new TextComponentString(this.localization.translate(player, "party.info.leader", info.leaderName)));
-        player.sendMessage(new TextComponentString(this.localization.translate(player, "party.info.members", String.join(", ", info.memberNames))));
+        player.sendMessage(Text.literal(localization.translate(player, "party.info.name", info.name)), false);
+        player.sendMessage(Text.literal(localization.translate(player, "party.info.leader", info.leaderName)), false);
+        player.sendMessage(Text.literal(localization.translate(player, "party.info.members", String.join(", ", info.memberNames))), false);
+        return 1;
     }
 
-    @Override
-    public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, BlockPos targetPos)
-    {
-        if (args.length == 1)
-        {
-            return getListOfStringsMatchingLastWord(args, "create", "invite", "accept", "leave", "info");
-        }
+    private static CommandSyntaxException error(String message) {
+        return new SimpleCommandExceptionType(Text.literal(message)).create();
+    }
 
-        if (args.length == 2 && "invite".equalsIgnoreCase(args[0]))
-        {
-            return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
-        }
+    private static void sendInviteMessage(ServerPlayerEntity target, Localization localization, String inviterName, String partyName) {
+        Text message = Text.literal(localization.translate(target, "party.invited_target", inviterName, partyName) + " ")
+            .append(createActionButton(
+                localization.translate(target, "party.invite_action.accept"),
+                "/teamglow accept",
+                localization.translate(target, "party.invite_action.accept.hover")
+            ))
+            .append(Text.literal(" "))
+            .append(createActionButton(
+                localization.translate(target, "party.invite_action.reject"),
+                "/teamglow reject",
+                localization.translate(target, "party.invite_action.reject.hover")
+            ));
+        target.sendMessage(message, false);
+    }
 
-        if (args.length == 2 && "create".equalsIgnoreCase(args[0]))
-        {
-            return getListOfStringsMatchingLastWord(args, this.partyManager.getKnownPartyNames());
-        }
-
-        return Collections.emptyList();
+    private static Text createActionButton(String label, String command, String hoverText) {
+        return Text.literal(label).styled(style -> style
+            .withColor(command.endsWith("accept") ? Formatting.GREEN : Formatting.RED)
+            .withBold(true)
+            .withClickEvent(new ClickEvent.RunCommand(command))
+            .withHoverEvent(new HoverEvent.ShowText(Text.literal(hoverText))));
     }
 }

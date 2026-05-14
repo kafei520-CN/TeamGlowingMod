@@ -2,29 +2,37 @@ package cn.kafei.TeamGlowing.client;
 
 import cn.kafei.TeamGlowing.network.TeamLocatorEntry;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
-public final class ClientLocatorCache
-{
-    private static List<TeamLocatorEntry> entries = new ArrayList<>();
+public final class ClientLocatorCache {
+    private static List<TeamLocatorEntry> entries = List.of();
 
-    private ClientLocatorCache()
-    {
+    private ClientLocatorCache() {
     }
 
-    public static void update(List<TeamLocatorEntry> updatedEntries)
-    {
-        entries = new ArrayList<>(updatedEntries);
+    public static void update(List<TeamLocatorEntry> updatedEntries) {
+        Map<String, TeamLocatorEntry> uniqueEntries = new LinkedHashMap<>();
+        for (TeamLocatorEntry entry : updatedEntries) {
+            uniqueEntries.putIfAbsent(normalizePlayerKey(entry), entry);
+        }
+        entries = List.copyOf(uniqueEntries.values());
     }
 
-    public static List<TeamLocatorEntry> getEntries()
-    {
-        return Collections.unmodifiableList(entries);
+    public static List<TeamLocatorEntry> getEntries() {
+        return entries;
     }
 
-    public static void clear()
-    {
-        entries.clear();
+    public static void clear() {
+        entries = new ArrayList<>();
+    }
+
+    private static String normalizePlayerKey(TeamLocatorEntry entry) {
+        String value = entry.playerId() != null && !entry.playerId().isBlank()
+            ? entry.playerId()
+            : (entry.playerName() != null && !entry.playerName().isBlank() ? entry.playerName() : entry.name());
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 }

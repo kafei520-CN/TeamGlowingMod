@@ -1,6 +1,5 @@
 package cn.kafei.TeamGlowing;
 
-import cn.kafei.TeamGlowing.client.ClientBootstrap;
 import cn.kafei.TeamGlowing.command.TeamGlowingPartyCommand;
 import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
 import cn.kafei.TeamGlowing.localization.Localization;
@@ -9,109 +8,49 @@ import cn.kafei.TeamGlowing.party.PartyManager;
 import cn.kafei.TeamGlowing.persistence.PartyPersistence;
 import cn.kafei.TeamGlowing.sync.GlowSyncService;
 import cn.kafei.TeamGlowing.sync.LocatorSyncService;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.init.Blocks;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLServerStartedEvent;
-import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
-import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.relauncher.Side;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.WorldSavePath;
 
-@Mod(modid = TeamGlowingConstants.MODID, name = TeamGlowingConstants.NAME, version = TeamGlowingConstants.VERSION)
-public class TeamGlowingMod
-{
-    private final PartyManager partyManager = new PartyManager();
-    private final Localization localization = new Localization();
-    private final PartyPersistence persistence = new PartyPersistence();
-    private final GlowSyncService glowSyncService = new GlowSyncService();
-    private final LocatorSyncService locatorSyncService = new LocatorSyncService();
+public class TeamGlowingMod implements ModInitializer {
+    private static final PartyManager PARTY_MANAGER = new PartyManager();
+    private static final Localization LOCALIZATION = new Localization();
+    private static final PartyPersistence PERSISTENCE = new PartyPersistence();
+    private static final GlowSyncService GLOW_SYNC_SERVICE = new GlowSyncService();
+    private static final LocatorSyncService LOCATOR_SYNC_SERVICE = new LocatorSyncService();
 
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent event)
-    {
-        TeamGlowingConstants.setLogger(event.getModLog());
-        this.glowSyncService.initReflection();
+    @Override
+    public void onInitialize() {
         TeamGlowingNetwork.register();
-        if (event.getSide() == Side.CLIENT)
-        {
-            ClientBootstrap.init();
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+            TeamGlowingPartyCommand.register(dispatcher, PARTY_MANAGER, LOCALIZATION, PERSISTENCE)
+        );
+        ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> PERSISTENCE.save(PARTY_MANAGER));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> this.onPlayerJoin(handler.player));
+        ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
+        TeamGlowingConstants.LOGGER.info("{} initialized for Fabric {}", TeamGlowingConstants.NAME, TeamGlowingConstants.VERSION);
+    }
+
+    private void onServerStarted(MinecraftServer server) {
+        PERSISTENCE.setSaveFilePath(server.getSavePath(WorldSavePath.ROOT).resolve("teamglowing-parties.json"));
+        PERSISTENCE.load(PARTY_MANAGER);
+    }
+
+    private void onPlayerJoin(ServerPlayerEntity player) {
+        GLOW_SYNC_SERVICE.syncSinglePlayer(player, PARTY_MANAGER);
+        LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
+    }
+
+    private void onEndServerTick(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            GLOW_SYNC_SERVICE.syncVisibilityForPlayer(player, PARTY_MANAGER);
+            LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         }
-    }
-
-    @EventHandler
-    public void init(FMLInitializationEvent event)
-    {
-        MinecraftForge.EVENT_BUS.register(this);
-        TeamGlowingConstants.getLogger().info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
-    }
-
-    @EventHandler
-    public void serverStarting(FMLServerStartingEvent event)
-    {
-        event.registerServerCommand(new TeamGlowingPartyCommand(this.partyManager, this.localization, this.persistence));
-    }
-
-    @EventHandler
-    public void serverStarted(FMLServerStartedEvent event)
-    {
-        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
-        if (server == null)
-        {
-            return;
-        }
-
-        this.persistence.setSaveFilePath(server.getFile("teamglowing-parties.json").toPath());
-        this.persistence.load(this.partyManager);
-    }
-
-    @EventHandler
-    public void serverStopping(FMLServerStoppingEvent event)
-    {
-        this.persistence.save(this.partyManager);
-    }
-
-    @SubscribeEvent
-    public void onPlayerTick(TickEvent.PlayerTickEvent event)
-    {
-        if (event.phase != TickEvent.Phase.END || event.player.world.isRemote || !(event.player instanceof EntityPlayerMP))
-        {
-            return;
-        }
-
-        EntityPlayerMP player = (EntityPlayerMP) event.player;
-        this.glowSyncService.syncVisibilityForPlayer(player, this.partyManager);
-        this.locatorSyncService.syncToPlayer(player, this.partyManager);
-    }
-
-    @SubscribeEvent
-    public void onPlayerLogin(PlayerLoggedInEvent event)
-    {
-        if (event.player instanceof EntityPlayerMP)
-        {
-            EntityPlayerMP player = (EntityPlayerMP) event.player;
-            this.glowSyncService.syncSinglePlayer(player, this.partyManager);
-            this.locatorSyncService.syncToPlayer(player, this.partyManager);
-        }
-    }
-
-    @SubscribeEvent
-    public void onLivingUpdate(LivingEvent.LivingUpdateEvent event)
-    {
-        if (!(event.getEntityLiving() instanceof EntityPlayerMP))
-        {
-            return;
-        }
-
-        this.glowSyncService.syncVisibilityForPlayer((EntityPlayerMP) event.getEntityLiving(), this.partyManager);
     }
 }

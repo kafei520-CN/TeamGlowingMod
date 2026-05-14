@@ -1,31 +1,25 @@
 package cn.kafei.TeamGlowing.client;
 
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
+import cn.kafei.TeamGlowing.network.TeamGlowingNetwork;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.util.Identifier;
 
-public final class ClientBootstrap
-{
-    private static boolean initialized;
-
-    private ClientBootstrap()
-    {
-    }
-
-    public static void init()
-    {
-        if (initialized)
-        {
-            return;
-        }
-        initialized = true;
-        MinecraftForge.EVENT_BUS.register(new ClientHudRenderer());
-        MinecraftForge.EVENT_BUS.register(new ClientBootstrap());
-    }
-
-    @SubscribeEvent
-    public void onClientLogout(PlayerEvent.PlayerLoggedOutEvent event)
-    {
-        ClientLocatorCache.clear();
+public final class ClientBootstrap implements ClientModInitializer {
+    @Override
+    public void onInitializeClient() {
+        ClientToggleState.load();
+        TeamGlowingNetwork.registerClient();
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> TeamGlowingClientCommand.register(dispatcher));
+        HudElementRegistry.addLast(
+            Identifier.of(TeamGlowingConstants.MODID, "hud"),
+            (context, tickCounter) -> ClientHudRenderer.render(context)
+        );
+        ClientTickEvents.END_CLIENT_TICK.register(ClientToggleState::suppressTeammateGlow);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientLocatorCache.clear());
     }
 }

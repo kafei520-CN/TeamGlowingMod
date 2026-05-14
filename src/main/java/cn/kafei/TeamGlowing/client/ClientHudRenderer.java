@@ -2,20 +2,21 @@ package cn.kafei.TeamGlowing.client;
 
 import cn.kafei.TeamGlowing.network.TeamLocatorEntry;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.renderer.GlStateManager;
+import java.util.Set;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
-public class ClientHudRenderer
-{
+public final class ClientHudRenderer {
     private static final int BAR_WIDTH = 182;
     private static final int BAR_Y_OFFSET = 29;
     private static final int ICON_SIZE = 9;
@@ -26,232 +27,220 @@ public class ClientHudRenderer
     private static final double MAX_ANGLE = 90.0D;
     private static final double HEIGHT_THRESHOLD = 3.0D;
     private static final int EDGE_FADE_MARGIN = 18;
-    private final Map<String, Float> smoothPositions = new HashMap<>();
+    private static final Map<String, Float> SMOOTH_POSITIONS = new HashMap<>();
 
-    @SubscribeEvent
-    public void onRenderOverlay(RenderGameOverlayEvent.Post event)
-    {
-        if (event.getType() != RenderGameOverlayEvent.ElementType.EXPERIENCE)
-        {
+    private ClientHudRenderer() {
+    }
+
+    public static void render(DrawContext context) {
+        if (!ClientToggleState.isEnabled()) {
+            SMOOTH_POSITIONS.clear();
             return;
         }
 
-        Minecraft minecraft = Minecraft.getMinecraft();
-        if (minecraft.player == null || minecraft.world == null)
-        {
-            this.smoothPositions.clear();
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
+        if (player == null || client.world == null) {
+            SMOOTH_POSITIONS.clear();
             return;
         }
 
         List<TeamLocatorEntry> entries = ClientLocatorCache.getEntries();
-        if (entries.isEmpty())
-        {
-            this.smoothPositions.clear();
+        if (entries.isEmpty()) {
+            SMOOTH_POSITIONS.clear();
             return;
         }
 
-        ScaledResolution resolution = new ScaledResolution(minecraft);
-        Entity camera = minecraft.getRenderViewEntity();
-        if (camera == null)
-        {
-            camera = minecraft.player;
-        }
-        int barLeft = (resolution.getScaledWidth() - BAR_WIDTH) / 2;
-        int barY = resolution.getScaledHeight() - BAR_Y_OFFSET;
-        boolean showNames = minecraft.gameSettings.keyBindPlayerList.isKeyDown();
+        entries = dedupeEntries(entries);
+        pruneUnusedSmoothPositions(entries);
 
-        Gui.drawRect(barLeft, barY + 3, barLeft + BAR_WIDTH, barY + 4, 0xC0101010);
+        Entity camera = client.getCameraEntity();
+        if (camera == null) {
+            camera = player;
+        }
+
+        int screenWidth = context.getScaledWindowWidth();
+        int screenHeight = context.getScaledWindowHeight();
+        int barLeft = (screenWidth - BAR_WIDTH) / 2;
+        int barY = screenHeight - BAR_Y_OFFSET;
+        boolean showNames = client.options.playerListKey.isPressed();
+
+        context.fill(barLeft, barY + 3, barLeft + BAR_WIDTH, barY + 4, 0xC0101010);
 
         int rendered = 0;
-        for (TeamLocatorEntry entry : entries)
-        {
-            if (rendered >= MAX_DISPLAY)
-            {
+        for (TeamLocatorEntry entry : entries) {
+            if (rendered >= MAX_DISPLAY) {
                 break;
             }
 
-            double distance = minecraft.player.getDistance(entry.x, entry.y, entry.z);
-            double relativeAngle = this.getRelativeAngleDegrees(camera.rotationYaw, camera.posX, camera.posZ, entry.x, entry.z);
-            if (Math.abs(relativeAngle) > MAX_ANGLE)
-            {
-                this.smoothPositions.remove(entry.name);
+            double distance = player.squaredDistanceTo(entry.x(), entry.y(), entry.z());
+            double relativeAngle = getRelativeAngleDegrees(camera.getYaw(), camera.getX(), camera.getZ(), entry.x(), entry.z());
+            if (Math.abs(relativeAngle) > MAX_ANGLE) {
+                SMOOTH_POSITIONS.remove(getEntryKey(entry));
                 continue;
             }
-            int targetX = this.projectAngleToX(relativeAngle, barLeft, BAR_WIDTH);
-            float currentX = this.getSmoothedX(entry.name, targetX);
-            float alpha = this.getEdgeAlpha(currentX, barLeft, barLeft + BAR_WIDTH);
-            int textureIndex = this.getTextureIndexFromDistance(distance);
-            int playerColor = this.generateColorFromPlayerName(entry.playerName);
+
+            int targetX = projectAngleToX(relativeAngle, barLeft, BAR_WIDTH);
+            float currentX = getSmoothedX(getEntryKey(entry), targetX);
+            float alpha = getEdgeAlpha(currentX, barLeft, barLeft + BAR_WIDTH);
+            int textureIndex = getTextureIndexFromDistance(Math.sqrt(distance));
+            int playerColor = generateColorFromPlayerName(entry.playerName());
             int markerY = barY + MARKER_Y_OFFSET;
-            this.drawMarker(minecraft, currentX, markerY, textureIndex, playerColor, alpha);
-            this.drawHeightArrow(minecraft, currentX, markerY, entry.y - camera.posY, alpha);
-            if (showNames)
-            {
-                this.drawPlayerName(minecraft, entry.name, currentX, markerY, alpha);
+            drawMarker(context, currentX, markerY, textureIndex, playerColor, alpha);
+            drawHeightArrow(context, currentX, markerY, entry.y() - camera.getY(), alpha);
+            if (showNames) {
+                drawPlayerName(context, entry.name(), currentX, markerY, alpha);
             }
             rendered++;
         }
     }
 
-    private void drawMarker(Minecraft minecraft, float x, int barY, int textureIndex, int color, float alpha)
-    {
-        if (alpha <= 0.02F)
-        {
+    private static void drawMarker(DrawContext context, float x, int barY, int textureIndex, int color, float alpha) {
+        if (alpha <= 0.02F) {
             return;
         }
 
-        GlStateManager.pushMatrix();
-        GlStateManager.enableBlend();
-        minecraft.getTextureManager().bindTexture(ClientHudTextures.PLAYER_DOT_OUTLINES[textureIndex]);
-        this.setColor(this.darkerColoring(color), alpha);
-        Gui.drawModalRectWithCustomSizedTexture((int) x - ICON_SIZE / 2, barY - ICON_SIZE / 2, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
-        minecraft.getTextureManager().bindTexture(ClientHudTextures.PLAYER_DOTS[textureIndex]);
-        this.setColor(color, alpha);
-        Gui.drawModalRectWithCustomSizedTexture((int) x - ICON_SIZE / 2, barY - ICON_SIZE / 2, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.popMatrix();
+        int drawX = (int) x - ICON_SIZE / 2;
+        int drawY = barY - ICON_SIZE / 2;
+        int darkerColor = darkerColoring(color);
+        
+        // Convert to ARGB color format with alpha
+        int outlineColor = ((int) (alpha * 255.0F) << 24) | (darkerColor & 0xFFFFFF);
+        int dotColor = ((int) (alpha * 255.0F) << 24) | (color & 0xFFFFFF);
+        
+        // Draw outline with darker color
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, ClientHudTextures.PLAYER_DOT_OUTLINES[textureIndex], drawX, drawY, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE, outlineColor);
+        
+        // Draw dot with normal color
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, ClientHudTextures.PLAYER_DOTS[textureIndex], drawX, drawY, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE, dotColor);
     }
 
-    private void drawHeightArrow(Minecraft minecraft, float x, int barY, double deltaY, float alpha)
-    {
-        if (Math.abs(deltaY) < HEIGHT_THRESHOLD || alpha <= 0.02F)
-        {
+    private static void drawHeightArrow(DrawContext context, float x, int barY, double deltaY, float alpha) {
+        if (Math.abs(deltaY) < HEIGHT_THRESHOLD || alpha <= 0.02F) {
             return;
         }
 
         int iconTop = barY - ICON_SIZE / 2;
         int iconBottom = iconTop + ICON_SIZE;
         int arrowX = Math.round(x) - ARROW_SIZE / 2;
-        GlStateManager.pushMatrix();
-        GlStateManager.enableBlend();
-        GlStateManager.color(1.0F, 1.0F, 1.0F, alpha);
-        minecraft.getTextureManager().bindTexture(ClientHudTextures.ARROW);
-        if (deltaY < 0.0D)
-        {
-            this.drawArrowFrame(arrowX, iconBottom, false);
+        
+        // White color with alpha
+        int arrowColor = ((int) (alpha * 255.0F) << 24) | 0xFFFFFF;
+        
+        if (deltaY < 0.0D) {
+            context.drawTexture(RenderPipelines.GUI_TEXTURED, ClientHudTextures.ARROW, arrowX, iconBottom, ARROW_SIZE, 0, ARROW_SIZE, ARROW_SIZE, ARROW_TEXTURE_SIZE, ARROW_TEXTURE_SIZE, arrowColor);
+        } else {
+            context.drawTexture(RenderPipelines.GUI_TEXTURED, ClientHudTextures.ARROW, arrowX, iconTop - ARROW_SIZE, 0, 0, ARROW_SIZE, ARROW_SIZE, ARROW_TEXTURE_SIZE, ARROW_TEXTURE_SIZE, arrowColor);
         }
-        else
-        {
-            this.drawArrowFrame(arrowX, iconTop - ARROW_SIZE, true);
-        }
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.popMatrix();
     }
 
-    private void drawPlayerName(Minecraft minecraft, String name, float x, int barY, float alpha)
-    {
-        if (alpha <= 0.02F)
-        {
+    private static void drawPlayerName(DrawContext context, String name, float x, int barY, float alpha) {
+        if (alpha <= 0.02F) {
             return;
         }
 
-        int textWidth = minecraft.fontRenderer.getStringWidth(name);
+        MinecraftClient client = MinecraftClient.getInstance();
+        int textWidth = client.textRenderer.getWidth(name);
         int color = ((int) (alpha * 255.0F) << 24) | 0xFFFFFF;
-        minecraft.fontRenderer.drawStringWithShadow(name, (int) x - textWidth / 2, barY - 17, color);
+        context.drawText(client.textRenderer, Text.literal(name), (int) x - textWidth / 2, barY - 17, color, true);
     }
 
-    private void drawArrowFrame(int x, int y, boolean up)
-    {
-        int textureX = up ? 0 : ARROW_SIZE;
-        Gui.drawModalRectWithCustomSizedTexture(x, y, textureX, 0, ARROW_SIZE, ARROW_SIZE, ARROW_TEXTURE_SIZE, ARROW_TEXTURE_SIZE);
-    }
-
-    private float getSmoothedX(String key, int targetX)
-    {
-        Float current = this.smoothPositions.get(key);
-        if (current == null)
-        {
+    private static float getSmoothedX(String key, int targetX) {
+        Float current = SMOOTH_POSITIONS.get(key);
+        if (current == null) {
             current = (float) targetX;
-        }
-        else
-        {
+        } else {
             current += (targetX - current) * 0.35F;
         }
-        this.smoothPositions.put(key, current);
+        SMOOTH_POSITIONS.put(key, current);
         return current;
     }
 
-    private float getEdgeAlpha(float currentX, int barLeft, int barRight)
-    {
+    private static float getEdgeAlpha(float currentX, int barLeft, int barRight) {
         float leftDistance = currentX - barLeft;
         float rightDistance = barRight - currentX;
         float minDistance = Math.min(leftDistance, rightDistance);
-        if (minDistance >= EDGE_FADE_MARGIN)
-        {
+        if (minDistance >= EDGE_FADE_MARGIN) {
             return 1.0F;
         }
-        if (minDistance <= 0.0F)
-        {
+        if (minDistance <= 0.0F) {
             return 0.0F;
         }
         return minDistance / EDGE_FADE_MARGIN;
     }
 
-    private double getRelativeAngleDegrees(float playerYaw, double playerX, double playerZ, double targetX, double targetZ)
-    {
+    private static double getRelativeAngleDegrees(float playerYaw, double playerX, double playerZ, double targetX, double targetZ) {
         double dx = targetX - playerX;
         double dz = targetZ - playerZ;
-        if (Math.abs(dx) < 0.0001D && Math.abs(dz) < 0.0001D)
-        {
+        if (Math.abs(dx) < 0.0001D && Math.abs(dz) < 0.0001D) {
             return 0.0D;
         }
 
         double targetYaw = Math.toDegrees(Math.atan2(-dx, dz));
         double relative = targetYaw - playerYaw;
-        while (relative <= -180.0D)
-        {
+        while (relative <= -180.0D) {
             relative += 360.0D;
         }
-        while (relative > 180.0D)
-        {
+        while (relative > 180.0D) {
             relative -= 360.0D;
         }
         return relative;
     }
 
-    private int projectAngleToX(double relativeAngle, int barLeft, int barWidth)
-    {
+    private static int projectAngleToX(double relativeAngle, int barLeft, int barWidth) {
         double clampedAngle = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, relativeAngle));
         double normalized = (clampedAngle + MAX_ANGLE) / (MAX_ANGLE * 2.0D);
         return barLeft + MathHelper.floor(normalized * (barWidth - 1));
     }
 
-    private int getTextureIndexFromDistance(double distance)
-    {
-        if (distance < 128.0D)
-        {
+    private static int getTextureIndexFromDistance(double distance) {
+        if (distance < 128.0D) {
             return 0;
         }
-        if (distance < 230.0D)
-        {
+        if (distance < 230.0D) {
             return 1;
         }
-        if (distance < 332.0D)
-        {
+        if (distance < 332.0D) {
             return 2;
         }
         return 3;
     }
 
-    private int generateColorFromPlayerName(String playerName)
-    {
+    private static int generateColorFromPlayerName(String playerName) {
         Random random = new Random(playerName.toLowerCase().hashCode());
         return 0xFF000000 | ((random.nextInt(206) + 50) << 16) | ((random.nextInt(206) + 50) << 8) | (random.nextInt(206) + 50);
     }
 
-    private int darkerColoring(int color)
-    {
-        int red = (int) (Math.max(0, ((color >> 16) & 0xFF) * 0.55F));
-        int green = (int) (Math.max(0, ((color >> 8) & 0xFF) * 0.55F));
-        int blue = (int) (Math.max(0, (color & 0xFF) * 0.55F));
+    private static int darkerColoring(int color) {
+        int red = (int) (((color >> 16) & 0xFF) * 0.55F);
+        int green = (int) (((color >> 8) & 0xFF) * 0.55F);
+        int blue = (int) ((color & 0xFF) * 0.55F);
         return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
-    private void setColor(int color, float alpha)
-    {
-        float red = ((color >> 16) & 0xFF) / 255.0F;
-        float green = ((color >> 8) & 0xFF) / 255.0F;
-        float blue = (color & 0xFF) / 255.0F;
-        GlStateManager.color(red, green, blue, alpha);
+    private static List<TeamLocatorEntry> dedupeEntries(List<TeamLocatorEntry> entries) {
+        Map<String, TeamLocatorEntry> uniqueEntries = new LinkedHashMap<>();
+        for (TeamLocatorEntry entry : entries) {
+            uniqueEntries.putIfAbsent(getEntryKey(entry), entry);
+        }
+        return List.copyOf(uniqueEntries.values());
+    }
+
+    private static void pruneUnusedSmoothPositions(List<TeamLocatorEntry> entries) {
+        Set<String> validKeys = new HashSet<>();
+        for (TeamLocatorEntry entry : entries) {
+            validKeys.add(getEntryKey(entry));
+        }
+        SMOOTH_POSITIONS.keySet().removeIf(key -> !validKeys.contains(key));
+    }
+
+    private static String getEntryKey(TeamLocatorEntry entry) {
+        if (entry.playerId() != null && !entry.playerId().isBlank()) {
+            return entry.playerId();
+        }
+        if (entry.playerName() != null && !entry.playerName().isBlank()) {
+            return entry.playerName().toLowerCase();
+        }
+        return entry.name().toLowerCase();
     }
 }

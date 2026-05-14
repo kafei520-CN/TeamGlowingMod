@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "cn.kafei.TeamGlowing.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EntityAccessor"
+  ],
+  "client": [
+    "EntityGlowSuppressionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,17 +1,13 @@
 package cn.kafei.TeamGlowing.network;
 
 import cn.kafei.TeamGlowing.client.ClientLocatorCache;
-import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
-import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
-import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
-public class TeamLocatorMessageHandler implements IMessageHandler<TeamLocatorMessage, IMessage>
-{
-    @Override
-    public IMessage onMessage(TeamLocatorMessage message, MessageContext ctx)
-    {
-        Minecraft.getMinecraft().addScheduledTask(() -> ClientLocatorCache.update(message.entries));
-        return null;
+public final class TeamLocatorMessageHandler {
+    private TeamLocatorMessageHandler() {
+    }
+
+    public static void handle(TeamLocatorMessage message, ClientPlayNetworking.Context context) {
+        context.client().execute(() -> ClientLocatorCache.update(message.entries()));
     }
 }

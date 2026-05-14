@@ -1,51 +1,54 @@
 package cn.kafei.TeamGlowing.network;
 
-import io.netty.buffer.ByteBuf;
+import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraftforge.fml.common.network.ByteBufUtils;
-import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodec;
+import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.util.Identifier;
 
-public class TeamLocatorMessage implements IMessage
-{
-    public final List<TeamLocatorEntry> entries = new ArrayList<>();
+public class TeamLocatorMessage implements CustomPayload {
+    public static final Id<TeamLocatorMessage> ID = new Id<>(Identifier.of(TeamGlowingConstants.MODID, "team_locator"));
+    public static final PacketCodec<RegistryByteBuf, TeamLocatorMessage> CODEC = PacketCodec.of(TeamLocatorMessage::write, TeamLocatorMessage::new);
 
-    public TeamLocatorMessage()
-    {
-    }
+    private final List<TeamLocatorEntry> entries = new ArrayList<>();
 
-    public TeamLocatorMessage(List<TeamLocatorEntry> entries)
-    {
+    public TeamLocatorMessage(List<TeamLocatorEntry> entries) {
         this.entries.addAll(entries);
     }
 
-    @Override
-    public void fromBytes(ByteBuf buf)
-    {
-        this.entries.clear();
-        int size = buf.readInt();
-        for (int index = 0; index < size; index++)
-        {
-            String name = ByteBufUtils.readUTF8String(buf);
-            String playerName = ByteBufUtils.readUTF8String(buf);
+    public TeamLocatorMessage(RegistryByteBuf buf) {
+        int size = buf.readVarInt();
+        for (int index = 0; index < size; index++) {
+            String name = buf.readString();
+            String playerName = buf.readString();
+            String playerId = buf.readString();
             double x = buf.readDouble();
             double y = buf.readDouble();
             double z = buf.readDouble();
-            this.entries.add(new TeamLocatorEntry(name, playerName, x, y, z));
+            this.entries.add(new TeamLocatorEntry(name, playerName, playerId, x, y, z));
         }
     }
 
-    @Override
-    public void toBytes(ByteBuf buf)
-    {
-        buf.writeInt(this.entries.size());
-        for (TeamLocatorEntry entry : this.entries)
-        {
-            ByteBufUtils.writeUTF8String(buf, entry.name);
-            ByteBufUtils.writeUTF8String(buf, entry.playerName);
-            buf.writeDouble(entry.x);
-            buf.writeDouble(entry.y);
-            buf.writeDouble(entry.z);
+    private void write(RegistryByteBuf buf) {
+        buf.writeVarInt(this.entries.size());
+        for (TeamLocatorEntry entry : this.entries) {
+            buf.writeString(entry.name());
+            buf.writeString(entry.playerName());
+            buf.writeString(entry.playerId());
+            buf.writeDouble(entry.x());
+            buf.writeDouble(entry.y());
+            buf.writeDouble(entry.z());
         }
+    }
+
+    public List<TeamLocatorEntry> entries() {
+        return List.copyOf(this.entries);
+    }
+
+    @Override
+    public Id<? extends CustomPayload> getId() {
+        return ID;
     }
 }
