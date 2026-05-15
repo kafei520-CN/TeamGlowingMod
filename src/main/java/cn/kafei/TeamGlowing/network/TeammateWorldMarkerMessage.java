@@ -32,6 +32,8 @@ public class TeammateWorldMarkerMessage implements CustomPayload {
                 buf.readDouble(),
                 buf.readDouble(),
                 buf.readString(),
+                buf.readString(),
+                buf.readBoolean(),
                 buf.readLong()
             ));
         }
@@ -49,6 +51,8 @@ public class TeammateWorldMarkerMessage implements CustomPayload {
             buf.writeDouble(entry.y());
             buf.writeDouble(entry.z());
             buf.writeString(entry.itemId() == null ? "" : entry.itemId());
+            buf.writeString(entry.label() == null ? "" : entry.label());
+            buf.writeBoolean(entry.labelIsTranslationKey());
             buf.writeLong(entry.expiresAtMillis());
         }
     }

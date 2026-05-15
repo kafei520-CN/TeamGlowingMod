@@ -10,6 +10,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -18,14 +19,15 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public final class ClientWorldMarkerRenderer {
-    private static final double WAYPOINT_Y_OFFSET = 0.75D;
-    private static final double ITEM_Y_OFFSET = 0.35D;
     private static final int ITEM_ICON_SIZE = 12;
     private static final int PING_ICON_SIZE = 8;
+    private static final float PING_DIAMOND_SIZE = 6.0F;
     private static final int ITEM_PING_X_OFFSET = 7;
     private static final int ITEM_PING_Y_OFFSET = 7;
     private static final int LABEL_SPACING = 2;
+    private static final int ENTITY_ICON_GAP = 1;
     private static final float DISTANCE_TEXT_SCALE = 0.55F;
+    private static final float ENTITY_NAME_TEXT_SCALE = 0.75F;
     private static final float MIN_SCALE = 0.55F;
     private static final float MAX_SCALE = 0.85F;
     private static final float MIN_ALPHA = 0.35F;
@@ -97,10 +99,9 @@ public final class ClientWorldMarkerRenderer {
         int screenHeight,
         float focalLength
     ) {
-        double worldY = entry.y() + (entry.kind() == SharedMarkerKind.ITEM ? ITEM_Y_OFFSET : WAYPOINT_Y_OFFSET);
         Vector3f cameraSpace = new Vector3f(
             (float) (entry.x() - cameraPos.x),
-            (float) (worldY - cameraPos.y),
+            (float) (entry.y() - cameraPos.y),
             (float) (entry.z() - cameraPos.z)
         );
         cameraSpace.rotate(inverseCameraRotation);
@@ -129,12 +130,18 @@ public final class ClientWorldMarkerRenderer {
             distance,
             scale,
             color,
+            isSelfMarker,
             resolveItemStack(entry.itemId()),
             -cameraSpace.z
         );
     }
 
     private static void renderProjectedMarker(DrawContext context, MinecraftClient client, ProjectedMarker marker) {
+        if (marker.entry().kind() == SharedMarkerKind.ENTITY) {
+            renderEntityMarker(context, client, marker);
+            return;
+        }
+
         boolean renderItem = marker.entry().kind() == SharedMarkerKind.ITEM && !marker.itemStack().isEmpty();
         int iconSize = renderItem ? ITEM_ICON_SIZE : PING_ICON_SIZE;
         float alpha = getAlpha(marker.distance());
@@ -148,10 +155,10 @@ public final class ClientWorldMarkerRenderer {
             context.drawItem(marker.itemStack(), 0, 0);
             context.getMatrices().pushMatrix();
             context.getMatrices().translate(ITEM_PING_X_OFFSET, ITEM_PING_Y_OFFSET);
-            renderPingIcon(context, marker.color(), alpha);
+            renderPingIcon(context, marker.color(), marker.self(), alpha);
             context.getMatrices().popMatrix();
         } else {
-            renderPingIcon(context, marker.color(), alpha);
+            renderPingIcon(context, marker.color(), marker.self(), alpha);
         }
         context.getMatrices().popMatrix();
 
@@ -164,14 +171,61 @@ public final class ClientWorldMarkerRenderer {
         drawScaledText(context, client, distanceText, distanceX, distanceY, withAlpha(0xFFFFFF, alpha), DISTANCE_TEXT_SCALE);
     }
 
-    private static void renderPingIcon(DrawContext context, int color, float alpha) {
+    private static void renderEntityMarker(DrawContext context, MinecraftClient client, ProjectedMarker marker) {
+        float alpha = getAlpha(marker.distance());
+        String nameText = resolveEntityLabel(marker.entry());
+        String distanceText = MathHelper.floor(marker.distance()) + "m";
+        int nameWidth = client.textRenderer.getWidth(nameText);
+        int distanceWidth = client.textRenderer.getWidth(distanceText);
+        int pingPixelSize = Math.round(PING_ICON_SIZE * marker.scale());
+        int nameY = Math.round(marker.screenY()) + pingPixelSize / 2 + ENTITY_ICON_GAP;
+        int distanceY = nameY + Math.round(9.0F * ENTITY_NAME_TEXT_SCALE) + 1;
+
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(marker.screenX(), marker.screenY() - pingPixelSize / 2.0F);
+        context.getMatrices().scale(marker.scale(), marker.scale());
+        context.getMatrices().translate(-PING_ICON_SIZE / 2.0F, -PING_ICON_SIZE / 2.0F);
+        renderPingIcon(context, marker.color(), marker.self(), alpha);
+        context.getMatrices().popMatrix();
+
+        drawScaledText(
+            context,
+            client,
+            nameText,
+            Math.round(marker.screenX() - (nameWidth * ENTITY_NAME_TEXT_SCALE) / 2.0F),
+            nameY,
+            withAlpha(marker.color(), alpha),
+            ENTITY_NAME_TEXT_SCALE
+        );
+        drawScaledText(
+            context,
+            client,
+            distanceText,
+            Math.round(marker.screenX() - (distanceWidth * DISTANCE_TEXT_SCALE) / 2.0F),
+            distanceY,
+            withAlpha(0xFFFFFF, alpha),
+            DISTANCE_TEXT_SCALE
+        );
+    }
+
+    private static void renderPingIcon(DrawContext context, int color, boolean self, float alpha) {
         int fullColor = withAlpha(color, alpha);
-        int shadowColor = withAlpha(0x000000, alpha * 0.35F);
-        context.fill(1, 1, 6, 6, shadowColor);
         context.getMatrices().translate(PING_ICON_SIZE * 0.5F, PING_ICON_SIZE * 0.5F);
         context.getMatrices().mul(new Matrix3x2f().rotateLocal((float) (Math.PI / 4.0D)));
-        context.getMatrices().translate(-2.5F, -2.5F);
-        context.fill(0, 0, 5, 5, fullColor);
+        context.getMatrices().translate(-PING_DIAMOND_SIZE * 0.5F, -PING_DIAMOND_SIZE * 0.5F);
+        if (self) {
+            fillDiamondFrame(context, 0, 0, 6, fullColor);
+            context.fill(2, 2, 4, 4, fullColor);
+        } else {
+            context.fill(0, 0, 6, 6, fullColor);
+        }
+    }
+
+    private static void fillDiamondFrame(DrawContext context, int x, int y, int size, int color) {
+        context.fill(x, y, x + size, y + 1, color);
+        context.fill(x, y + size - 1, x + size, y + size, color);
+        context.fill(x, y + 1, x + 1, y + size - 1, color);
+        context.fill(x + size - 1, y + 1, x + size, y + size - 1, color);
     }
 
     private static ItemStack resolveItemStack(String itemId) {
@@ -180,6 +234,15 @@ public final class ClientWorldMarkerRenderer {
             return ItemStack.EMPTY;
         }
         return new ItemStack(Registries.ITEM.get(identifier));
+    }
+
+    private static String resolveEntityLabel(TeammateWorldMarkerEntry entry) {
+        if (entry.label() == null || entry.label().isBlank()) {
+            return entry.playerName() == null || entry.playerName().isBlank() ? entry.name() : entry.playerName();
+        }
+        return entry.labelIsTranslationKey()
+            ? Text.translatable(entry.label()).getString()
+            : entry.label();
     }
 
     private static void drawScaledText(
@@ -227,6 +290,7 @@ public final class ClientWorldMarkerRenderer {
         double distance,
         float scale,
         int color,
+        boolean self,
         ItemStack itemStack,
         double depth
     ) {

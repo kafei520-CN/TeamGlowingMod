@@ -14,6 +14,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
@@ -39,6 +41,11 @@ public final class MarkerSyncService {
 
         if (request.kind() == SharedMarkerKind.ITEM) {
             this.setItemMarker(player, request);
+            return;
+        }
+
+        if (request.kind() == SharedMarkerKind.ENTITY) {
+            this.setEntityMarker(player, request);
             return;
         }
 
@@ -124,6 +131,39 @@ public final class MarkerSyncService {
         ));
     }
 
+    private void setEntityMarker(ServerPlayerEntity player, SetSharedMarkerRequest request) {
+        ServerWorld world = resolveWorld(player, request.dimensionId());
+        if (world == null) {
+            return;
+        }
+
+        UUID targetEntityId;
+        try {
+            targetEntityId = UUID.fromString(request.targetEntityId());
+        } catch (IllegalArgumentException exception) {
+            return;
+        }
+
+        Entity entity = world.getEntity(targetEntityId);
+        if (!isTrackableEntity(entity)) {
+            return;
+        }
+
+        long expiresAtMillis = System.currentTimeMillis() + MARKER_DURATION_MILLIS;
+        this.markersByOwner.put(player.getUuid(), new ServerSharedMarkerState(
+            player.getName().getString(),
+            player.getGameProfile().getName(),
+            player.getUuidAsString(),
+            SharedMarkerKind.ENTITY,
+            request.dimensionId(),
+            entity.getX(),
+            entity.getY(),
+            entity.getZ(),
+            targetEntityId,
+            expiresAtMillis
+        ));
+    }
+
     private TeammateWorldMarkerEntry resolveEntry(ServerPlayerEntity viewer, ServerSharedMarkerState state) {
         if (viewer.getWorld() == null) {
             return null;
@@ -136,6 +176,10 @@ public final class MarkerSyncService {
             return this.resolveItemEntry(viewer, state);
         }
 
+        if (state.kind() == SharedMarkerKind.ENTITY) {
+            return this.resolveEntityEntry(viewer, state);
+        }
+
         return new TeammateWorldMarkerEntry(
             state.ownerName(),
             state.ownerPlayerName(),
@@ -146,6 +190,8 @@ public final class MarkerSyncService {
             state.y(),
             state.z(),
             "",
+            "",
+            false,
             state.expiresAtMillis()
         );
     }
@@ -174,8 +220,49 @@ public final class MarkerSyncService {
             itemEntity.getY() + 0.25D,
             itemEntity.getZ(),
             itemId == null ? "" : itemId.toString(),
+            "",
+            false,
             state.expiresAtMillis()
         );
+    }
+
+    private TeammateWorldMarkerEntry resolveEntityEntry(ServerPlayerEntity viewer, ServerSharedMarkerState state) {
+        ServerWorld world = resolveWorld(viewer, state.dimensionId());
+        if (world == null || state.trackedEntityId() == null) {
+            return null;
+        }
+
+        Entity entity = world.getEntity(state.trackedEntityId());
+        if (!isTrackableEntity(entity)) {
+            this.markersByOwner.remove(UUID.fromString(state.ownerPlayerId()));
+            return null;
+        }
+
+        String label = entity instanceof PlayerEntity playerEntity
+            ? playerEntity.getDisplayName().getString()
+            : entity.getType().getTranslationKey();
+        boolean labelIsTranslationKey = !(entity instanceof PlayerEntity);
+        return new TeammateWorldMarkerEntry(
+            state.ownerName(),
+            state.ownerPlayerName(),
+            state.ownerPlayerId(),
+            SharedMarkerKind.ENTITY,
+            state.dimensionId(),
+            entity.getX(),
+            entity.getY() + entity.getHeight() + 0.25D,
+            entity.getZ(),
+            "",
+            label,
+            labelIsTranslationKey,
+            state.expiresAtMillis()
+        );
+    }
+
+    private static boolean isTrackableEntity(Entity entity) {
+        if (entity == null || entity.isSpectator() || !entity.isAlive()) {
+            return false;
+        }
+        return entity instanceof PlayerEntity || entity instanceof MobEntity;
     }
 
     private static ServerWorld resolveWorld(ServerPlayerEntity player, String dimensionId) {

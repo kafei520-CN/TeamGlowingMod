@@ -76,7 +76,7 @@ public class PartyManager {
             throw new IllegalStateException("party.error.not_in_party");
         }
 
-        if (!party.leaderNameKey.equals(leaderNameKey)) {
+        if (!this.canInvite(party, leaderNameKey)) {
             throw new IllegalStateException("party.error.only_leader_invite");
         }
 
@@ -86,6 +86,45 @@ public class PartyManager {
 
         party.playerNames.put(targetNameKey, targetName);
         this.pendingInvites.put(targetNameKey, party.name);
+    }
+
+    public void addAdmin(String leaderName, String targetName) {
+        String leaderNameKey = normalizePlayerName(leaderName);
+        String targetNameKey = normalizePlayerName(targetName);
+        Party party = this.getPartyByPlayerName(leaderNameKey);
+        if (party == null) {
+            throw new IllegalStateException("party.error.not_in_party");
+        }
+        if (!party.leaderNameKey.equals(leaderNameKey)) {
+            throw new IllegalStateException("party.error.only_leader_manage_admin");
+        }
+        if (!party.memberNameKeys.contains(targetNameKey)) {
+            throw new IllegalStateException("party.error.target_not_in_party");
+        }
+        if (party.leaderNameKey.equals(targetNameKey)) {
+            throw new IllegalStateException("party.error.leader_cannot_be_admin");
+        }
+        if (!party.adminNameKeys.add(targetNameKey)) {
+            throw new IllegalStateException("party.error.already_admin");
+        }
+    }
+
+    public void removeAdmin(String leaderName, String targetName) {
+        String leaderNameKey = normalizePlayerName(leaderName);
+        String targetNameKey = normalizePlayerName(targetName);
+        Party party = this.getPartyByPlayerName(leaderNameKey);
+        if (party == null) {
+            throw new IllegalStateException("party.error.not_in_party");
+        }
+        if (!party.leaderNameKey.equals(leaderNameKey)) {
+            throw new IllegalStateException("party.error.only_leader_manage_admin");
+        }
+        if (party.leaderNameKey.equals(targetNameKey)) {
+            throw new IllegalStateException("party.error.leader_cannot_be_admin");
+        }
+        if (!party.adminNameKeys.remove(targetNameKey)) {
+            throw new IllegalStateException("party.error.not_admin");
+        }
     }
 
     public String acceptInvite(String playerName) {
@@ -129,6 +168,7 @@ public class PartyManager {
         this.pendingInvites.remove(playerNameKey);
         this.playerPartyByName.remove(playerNameKey);
         party.memberNameKeys.remove(playerNameKey);
+        party.adminNameKeys.remove(playerNameKey);
         party.playerNames.remove(playerNameKey);
 
         if (party.memberNameKeys.isEmpty()) {
@@ -139,6 +179,7 @@ public class PartyManager {
         if (party.leaderNameKey.equals(playerNameKey)) {
             String nextLeaderNameKey = party.memberNameKeys.iterator().next();
             party.leaderNameKey = nextLeaderNameKey;
+            party.adminNameKeys.remove(nextLeaderNameKey);
             return new LeaveResult(party.name, false, party.playerNames.get(nextLeaderNameKey));
         }
 
@@ -152,14 +193,20 @@ public class PartyManager {
         }
 
         List<String> memberNames = new ArrayList<>();
+        List<String> adminNames = new ArrayList<>();
         for (String memberNameKey : party.memberNameKeys) {
             String name = party.playerNames.get(memberNameKey);
             memberNames.add(name == null ? memberNameKey : name);
         }
+        for (String adminNameKey : party.adminNameKeys) {
+            String name = party.playerNames.get(adminNameKey);
+            adminNames.add(name == null ? adminNameKey : name);
+        }
+        Collections.sort(adminNames);
         Collections.sort(memberNames);
 
         String leaderName = party.playerNames.get(party.leaderNameKey);
-        return new PartyInfo(party.name, leaderName == null ? party.leaderNameKey : leaderName, memberNames);
+        return new PartyInfo(party.name, leaderName == null ? party.leaderNameKey : leaderName, adminNames, memberNames);
     }
 
     public Set<String> getKnownPartyNames() {
@@ -172,6 +219,7 @@ public class PartyManager {
             SavedParty savedParty = new SavedParty();
             savedParty.name = party.name;
             savedParty.leaderName = party.playerNames.get(party.leaderNameKey);
+            savedParty.admins = new ArrayList<>(party.adminNameKeys);
             savedParty.members = new ArrayList<>();
             for (String memberNameKey : party.memberNameKeys) {
                 SavedMember savedMember = new SavedMember();
@@ -192,13 +240,13 @@ public class PartyManager {
     }
 
     public void load(PartySaveData saveData) {
+        if (saveData == null || saveData.parties == null) {
+            return;
+        }
+
         this.partiesByName.clear();
         this.playerPartyByName.clear();
         this.pendingInvites.clear();
-
-        if (saveData == null) {
-            return;
-        }
 
         for (SavedParty savedParty : saveData.parties) {
             if (savedParty == null || savedParty.name == null) {
@@ -211,39 +259,58 @@ public class PartyManager {
             }
 
             String leaderNameKey = normalizePlayerName(leaderName);
-            Party party = new Party(savedParty.name, leaderNameKey, leaderName);
+            String normalizedPartyName = normalizePartyName(savedParty.name);
+            
+            Party party = new Party(normalizedPartyName, leaderNameKey, leaderName);
             party.memberNameKeys.clear();
+            party.adminNameKeys.clear();
             party.playerNames.clear();
             party.leaderNameKey = leaderNameKey;
 
-            for (SavedMember savedMember : savedParty.members == null ? Collections.<SavedMember>emptyList() : savedParty.members) {
-                String memberName = savedMember == null ? null : resolveSavedName(savedMember.playerName, savedMember.name, savedMember.id);
-                if (memberName == null) {
-                    continue;
-                }
+            if (savedParty.members != null) {
+                for (SavedMember savedMember : savedParty.members) {
+                    String memberName = savedMember == null ? null : resolveSavedName(savedMember.playerName, savedMember.name, savedMember.id);
+                    if (memberName == null) {
+                        continue;
+                    }
 
-                String memberNameKey = normalizePlayerName(memberName);
-                party.memberNameKeys.add(memberNameKey);
-                party.playerNames.put(memberNameKey, memberName);
-                this.playerPartyByName.put(memberNameKey, savedParty.name);
+                    String memberNameKey = normalizePlayerName(memberName);
+                    party.memberNameKeys.add(memberNameKey);
+                    party.playerNames.put(memberNameKey, memberName);
+                    this.playerPartyByName.put(memberNameKey, normalizedPartyName);
+                }
             }
 
             if (!party.memberNameKeys.contains(leaderNameKey)) {
                 party.memberNameKeys.add(leaderNameKey);
                 party.playerNames.put(leaderNameKey, leaderName);
-                this.playerPartyByName.put(leaderNameKey, savedParty.name);
+                this.playerPartyByName.put(leaderNameKey, normalizedPartyName);
             }
 
-            this.partiesByName.put(savedParty.name, party);
+            if (savedParty.admins != null) {
+                for (String adminName : savedParty.admins) {
+                    if (adminName == null || adminName.isBlank()) {
+                        continue;
+                    }
+                    String adminNameKey = normalizePlayerName(adminName);
+                    if (!adminNameKey.equals(leaderNameKey) && party.memberNameKeys.contains(adminNameKey)) {
+                        party.adminNameKeys.add(adminNameKey);
+                    }
+                }
+            }
+
+            this.partiesByName.put(normalizedPartyName, party);
         }
 
-        for (SavedInvite savedInvite : saveData.invites) {
-            if (savedInvite == null || savedInvite.partyName == null) {
-                continue;
-            }
-            String playerName = resolveSavedName(savedInvite.playerName, savedInvite.playerId);
-            if (playerName != null) {
-                this.pendingInvites.put(normalizePlayerName(playerName), savedInvite.partyName);
+        if (saveData.invites != null) {
+            for (SavedInvite savedInvite : saveData.invites) {
+                if (savedInvite == null || savedInvite.partyName == null) {
+                    continue;
+                }
+                String playerName = resolveSavedName(savedInvite.playerName, savedInvite.playerId);
+                if (playerName != null) {
+                    this.pendingInvites.put(normalizePlayerName(playerName), normalizePartyName(savedInvite.partyName));
+                }
             }
         }
     }
@@ -271,6 +338,10 @@ public class PartyManager {
         return partyName == null ? null : this.partiesByName.get(partyName);
     }
 
+    private boolean canInvite(Party party, String playerNameKey) {
+        return party.leaderNameKey.equals(playerNameKey) || party.adminNameKeys.contains(playerNameKey);
+    }
+
     public static String getPlayerName(ServerPlayerEntity player) {
         return player.getGameProfile().getName();
     }
@@ -280,7 +351,11 @@ public class PartyManager {
     }
 
     private static String normalizePartyName(String partyName) {
-        return partyName == null ? null : partyName.toLowerCase(Locale.ROOT);
+        if (partyName == null) {
+            return null;
+        }
+        String stripped = partyName.strip();
+        return stripped.isEmpty() ? "" : stripped.toLowerCase(Locale.ROOT);
     }
 
     private static String normalizePlayerName(String playerName) {

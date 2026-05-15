@@ -6,12 +6,18 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -22,7 +28,9 @@ import net.minecraft.world.RaycastContext;
 import org.lwjgl.glfw.GLFW;
 
 public final class ClientMarkerController {
-    private static final double MARKER_RAYCAST_DISTANCE = 1024.0D;
+    private static final double MARKER_RAYCAST_DISTANCE = 4096.0D;
+    private static final double RAYCAST_STEP_EPSILON = 0.05D;
+    private static final int MAX_IGNORED_BLOCK_STEPS = 256;
     private static KeyBinding markKey;
 
     private ClientMarkerController() {
@@ -74,21 +82,37 @@ public final class ClientMarkerController {
         }
 
         HitResult hitResult = findMarkerTarget(client, player);
-        if (hitResult instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof ItemEntity itemEntity) {
-            ClientPlayNetworking.send(new SetSharedMarkerRequest(
-                SharedMarkerKind.ITEM,
-                client.world.getRegistryKey().getValue().toString(),
-                itemEntity.getX(),
-                itemEntity.getY(),
-                itemEntity.getZ(),
-                itemEntity.getUuidAsString()
-            ));
-            player.sendMessage(Text.translatable("teamglowing.marker.shared_item"), true);
-            return;
+        if (hitResult instanceof EntityHitResult entityHitResult) {
+            Entity entity = entityHitResult.getEntity();
+            if (entity instanceof ItemEntity itemEntity) {
+                ClientPlayNetworking.send(new SetSharedMarkerRequest(
+                    SharedMarkerKind.ITEM,
+                    client.world.getRegistryKey().getValue().toString(),
+                    itemEntity.getX(),
+                    itemEntity.getY(),
+                    itemEntity.getZ(),
+                    itemEntity.getUuidAsString()
+                ));
+                player.sendMessage(Text.translatable("teamglowing.marker.shared_item"), true);
+                return;
+            }
+
+            if (isTrackableMarkerEntity(entity, player)) {
+                ClientPlayNetworking.send(new SetSharedMarkerRequest(
+                    SharedMarkerKind.ENTITY,
+                    client.world.getRegistryKey().getValue().toString(),
+                    entity.getX(),
+                    entity.getY(),
+                    entity.getZ(),
+                    entity.getUuidAsString()
+                ));
+                player.sendMessage(Text.translatable("teamglowing.marker.shared_entity"), true);
+                return;
+            }
         }
 
         if (hitResult instanceof BlockHitResult blockHitResult) {
-            Vec3d pos = Vec3d.ofCenter(blockHitResult.getBlockPos()).add(0.0D, 0.35D, 0.0D);
+            Vec3d pos = Vec3d.ofCenter(blockHitResult.getBlockPos());
             ClientPlayNetworking.send(new SetSharedMarkerRequest(
                 SharedMarkerKind.WAYPOINT,
                 client.world.getRegistryKey().getValue().toString(),
@@ -123,13 +147,7 @@ public final class ClientMarkerController {
         Vec3d direction = player.getRotationVec(1.0F);
         Vec3d end = start.add(direction.multiply(MARKER_RAYCAST_DISTANCE));
 
-        BlockHitResult blockHitResult = client.world.raycast(new RaycastContext(
-            start,
-            end,
-            RaycastContext.ShapeType.OUTLINE,
-            RaycastContext.FluidHandling.NONE,
-            player
-        ));
+        BlockHitResult blockHitResult = findBlockTarget(client, player, start, end, direction);
 
         double maxDistanceSquared = MARKER_RAYCAST_DISTANCE * MARKER_RAYCAST_DISTANCE;
         Box searchBox = player.getBoundingBox().stretch(direction.multiply(MARKER_RAYCAST_DISTANCE)).expand(1.0D);
@@ -162,7 +180,56 @@ public final class ClientMarkerController {
         return BlockHitResult.createMissed(end, net.minecraft.util.math.Direction.getFacing(direction.x, direction.y, direction.z), net.minecraft.util.math.BlockPos.ofFloored(end));
     }
 
+    private static BlockHitResult findBlockTarget(
+        MinecraftClient client,
+        ClientPlayerEntity player,
+        Vec3d start,
+        Vec3d end,
+        Vec3d direction
+    ) {
+        Vec3d currentStart = start;
+        for (int step = 0; step < MAX_IGNORED_BLOCK_STEPS; step++) {
+            BlockHitResult hitResult = client.world.raycast(new RaycastContext(
+                currentStart,
+                end,
+                RaycastContext.ShapeType.OUTLINE,
+                RaycastContext.FluidHandling.NONE,
+                player
+            ));
+            if (hitResult == null || hitResult.getType() == HitResult.Type.MISS) {
+                return BlockHitResult.createMissed(end, Direction.getFacing(direction.x, direction.y, direction.z), BlockPos.ofFloored(end));
+            }
+            if (!isIgnoredMarkerBlock(client, hitResult)) {
+                return hitResult;
+            }
+
+            Vec3d nextStart = hitResult.getPos().add(direction.multiply(RAYCAST_STEP_EPSILON));
+            if (nextStart.squaredDistanceTo(start) >= end.squaredDistanceTo(start)) {
+                break;
+            }
+            currentStart = nextStart;
+        }
+        return BlockHitResult.createMissed(end, Direction.getFacing(direction.x, direction.y, direction.z), BlockPos.ofFloored(end));
+    }
+
+    private static boolean isIgnoredMarkerBlock(MinecraftClient client, BlockHitResult hitResult) {
+        BlockPos blockPos = hitResult.getBlockPos();
+        BlockState state = client.world.getBlockState(blockPos);
+        return state.isReplaceable() || state.isIn(BlockTags.FLOWERS);
+    }
+
     private static boolean isValidMarkerEntity(Entity entity) {
-        return entity instanceof ItemEntity && !entity.isSpectator();
+        return isItemMarkerEntity(entity) || isTrackableMarkerEntity(entity, MinecraftClient.getInstance().player);
+    }
+
+    private static boolean isItemMarkerEntity(Entity entity) {
+        return entity instanceof ItemEntity && !entity.isSpectator() && entity.isAlive();
+    }
+
+    private static boolean isTrackableMarkerEntity(Entity entity, PlayerEntity localPlayer) {
+        if (entity == null || entity.isSpectator() || !entity.isAlive() || entity == localPlayer) {
+            return false;
+        }
+        return entity instanceof PlayerEntity || entity instanceof MobEntity;
     }
 }

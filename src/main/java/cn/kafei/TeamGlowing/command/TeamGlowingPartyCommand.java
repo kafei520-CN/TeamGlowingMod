@@ -33,13 +33,24 @@ public final class TeamGlowingPartyCommand {
         dispatcher.register(CommandManager.literal(literal)
             .requires(source -> true)
             .then(CommandManager.literal("create")
-                .then(CommandManager.argument("partyName", StringArgumentType.word())
+                .then(CommandManager.argument("partyName", StringArgumentType.greedyString())
                     .executes(context -> handleCreate(context, partyManager, localization, persistence))))
             .then(CommandManager.literal("invite")
                 .then(CommandManager.argument("player", StringArgumentType.word())
                     .suggests((context, builder) -> CommandSource.suggestMatching(
                         context.getSource().getServer().getPlayerManager().getPlayerNames(), builder))
                     .executes(context -> handleInvite(context, partyManager, localization, persistence))))
+            .then(CommandManager.literal("admin")
+                .then(CommandManager.literal("add")
+                    .then(CommandManager.argument("player", StringArgumentType.word())
+                        .suggests((context, builder) -> CommandSource.suggestMatching(
+                            context.getSource().getServer().getPlayerManager().getPlayerNames(), builder))
+                        .executes(context -> handleAdminAdd(context, partyManager, localization, persistence))))
+                .then(CommandManager.literal("remove")
+                    .then(CommandManager.argument("player", StringArgumentType.word())
+                        .suggests((context, builder) -> CommandSource.suggestMatching(
+                            context.getSource().getServer().getPlayerManager().getPlayerNames(), builder))
+                        .executes(context -> handleAdminRemove(context, partyManager, localization, persistence)))))
             .then(CommandManager.literal("accept")
                 .executes(context -> handleAccept(context, partyManager, localization, persistence)))
             .then(CommandManager.literal("reject")
@@ -82,6 +93,32 @@ public final class TeamGlowingPartyCommand {
             PartyInfo info = partyManager.getPartyInfo(PartyManager.getPlayerName(player));
             player.sendMessage(Text.literal(localization.translate(player, "party.invited_sender", target.getName().getString(), info.name)), false);
             sendInviteMessage(target, localization, player.getName().getString(), info.name);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
+        }
+    }
+
+    private static int handleAdminAdd(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String targetName = StringArgumentType.getString(context, "player");
+        try {
+            partyManager.addAdmin(PartyManager.getPlayerName(player), targetName);
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.admin.added", targetName)), false);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
+        }
+    }
+
+    private static int handleAdminRemove(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String targetName = StringArgumentType.getString(context, "player");
+        try {
+            partyManager.removeAdmin(PartyManager.getPlayerName(player), targetName);
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.admin.removed", targetName)), false);
             return 1;
         } catch (IllegalStateException exception) {
             throw error(localization.translate(player, exception.getMessage()));
@@ -147,6 +184,7 @@ public final class TeamGlowingPartyCommand {
 
         player.sendMessage(Text.literal(localization.translate(player, "party.info.name", info.name)), false);
         player.sendMessage(Text.literal(localization.translate(player, "party.info.leader", info.leaderName)), false);
+        player.sendMessage(Text.literal(localization.translate(player, "party.info.admins", info.adminNames.isEmpty() ? "-" : String.join(", ", info.adminNames))), false);
         player.sendMessage(Text.literal(localization.translate(player, "party.info.members", String.join(", ", info.memberNames))), false);
         return 1;
     }

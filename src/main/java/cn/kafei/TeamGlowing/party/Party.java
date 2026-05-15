@@ -9,6 +9,7 @@ public class Party
 {
     public final String name;
     public final Set<String> memberNameKeys = new LinkedHashSet<>();
+    public final Set<String> adminNameKeys = new LinkedHashSet<>();
     public final Map<String, String> playerNames = new HashMap<>();
     public String leaderNameKey;
 

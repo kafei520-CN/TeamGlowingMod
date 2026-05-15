@@ -3,6 +3,7 @@ package cn.kafei.TeamGlowing.marker;
 public enum SharedMarkerKind {
     WAYPOINT,
     ITEM,
+    ENTITY,
     CLEAR;
 
     public static SharedMarkerKind fromOrdinal(int ordinal) {

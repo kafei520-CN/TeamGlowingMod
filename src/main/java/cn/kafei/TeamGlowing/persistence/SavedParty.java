@@ -8,5 +8,6 @@ public class SavedParty
     public String name;
     public String leaderName;
     public String leaderId;
+    public List<String> admins = new ArrayList<>();
     public List<SavedMember> members = new ArrayList<>();
 }

@@ -9,6 +9,7 @@ import cn.kafei.TeamGlowing.persistence.PartyPersistence;
 import cn.kafei.TeamGlowing.sync.GlowSyncService;
 import cn.kafei.TeamGlowing.sync.LocatorSyncService;
 import cn.kafei.TeamGlowing.sync.MarkerSyncService;
+import cn.kafei.TeamGlowing.sync.PartyTabSyncService;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -25,6 +26,7 @@ public class TeamGlowingMod implements ModInitializer {
     private static final GlowSyncService GLOW_SYNC_SERVICE = new GlowSyncService();
     private static final LocatorSyncService LOCATOR_SYNC_SERVICE = new LocatorSyncService();
     private static final MarkerSyncService MARKER_SYNC_SERVICE = new MarkerSyncService();
+    private static final PartyTabSyncService PARTY_TAB_SYNC_SERVICE = new PartyTabSyncService();
 
     @Override
     public void onInitialize() {
@@ -45,11 +47,14 @@ public class TeamGlowingMod implements ModInitializer {
 
     private void onServerStarted(MinecraftServer server) {
         PERSISTENCE.setSaveFilePath(server.getSavePath(WorldSavePath.ROOT).resolve("teamglowing-parties.json"));
+        TeamGlowingConstants.LOGGER.info("Loading party data from: {}", server.getSavePath(WorldSavePath.ROOT).resolve("teamglowing-parties.json"));
         PERSISTENCE.load(PARTY_MANAGER);
     }
 
     private void onPlayerJoin(ServerPlayerEntity player) {
+        TeamGlowingConstants.LOGGER.info("Player joined: {}, syncing party info", player.getGameProfile().getName());
         GLOW_SYNC_SERVICE.syncSinglePlayer(player, PARTY_MANAGER);
+        PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         MARKER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
     }
@@ -57,6 +62,7 @@ public class TeamGlowingMod implements ModInitializer {
     private void onEndServerTick(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             GLOW_SYNC_SERVICE.syncVisibilityForPlayer(player, PARTY_MANAGER);
+            PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             MARKER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         }

@@ -29,6 +29,7 @@ public final class ClientBootstrap implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(ClientToggleState::suppressTeammateGlow);
         ClientTickEvents.END_CLIENT_TICK.register(ClientMarkerController::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ClientPartyTabCache.clear();
             ClientLocatorCache.clear();
             ClientWorldMarkerCache.clear();
         });

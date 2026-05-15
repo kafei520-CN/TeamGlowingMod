@@ -11,13 +11,19 @@ public final class TeamGlowingNetwork {
 
     public static void register() {
         PayloadTypeRegistry.playC2S().register(SetSharedMarkerRequest.ID, SetSharedMarkerRequest.CODEC);
+        PayloadTypeRegistry.playS2C().register(PartyTabMessage.ID, PartyTabMessage.CODEC);
         PayloadTypeRegistry.playS2C().register(TeamLocatorMessage.ID, TeamLocatorMessage.CODEC);
         PayloadTypeRegistry.playS2C().register(TeammateWorldMarkerMessage.ID, TeammateWorldMarkerMessage.CODEC);
     }
 
     public static void registerClient() {
+        ClientPlayNetworking.registerGlobalReceiver(PartyTabMessage.ID, PartyTabMessageHandler::handle);
         ClientPlayNetworking.registerGlobalReceiver(TeamLocatorMessage.ID, TeamLocatorMessageHandler::handle);
         ClientPlayNetworking.registerGlobalReceiver(TeammateWorldMarkerMessage.ID, TeammateWorldMarkerMessageHandler::handle);
+    }
+
+    public static void sendTo(ServerPlayerEntity player, PartyTabMessage message) {
+        ServerPlayNetworking.send(player, message);
     }
 
     public static void sendTo(ServerPlayerEntity player, TeamLocatorMessage message) {

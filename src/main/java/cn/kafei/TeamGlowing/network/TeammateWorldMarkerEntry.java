@@ -12,6 +12,8 @@ public record TeammateWorldMarkerEntry(
     double y,
     double z,
     String itemId,
+    String label,
+    boolean labelIsTranslationKey,
     long expiresAtMillis
 ) {
 }
