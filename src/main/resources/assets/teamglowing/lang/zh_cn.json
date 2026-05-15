@@ -24,10 +24,21 @@
   "party.error.no_pending_invite": "你当前没有待处理的小队邀请",
   "party.error.party_missing": "该小队已不存在",
   "party.error.cannot_invite_self": "不能邀请自己",
+  "teamglowing.dimension_suffix.overworld": "（主世界）",
+  "teamglowing.dimension_suffix.nether": "（地狱）",
+  "teamglowing.dimension_suffix.end": "（末地）",
+  "teamglowing.dimension_suffix.other": "（其他维度）",
   "teamglowing.client.enabled": "TeamGlowing 客户端功能已开启",
   "teamglowing.client.disabled": "TeamGlowing 客户端功能已关闭",
   "teamglowing.client.already_enabled": "TeamGlowing 客户端功能已经是开启状态",
   "teamglowing.client.already_disabled": "TeamGlowing 客户端功能已经是关闭状态",
   "teamglowing.client.status.enabled": "TeamGlowing 客户端当前状态：开启",
-  "teamglowing.client.status.disabled": "TeamGlowing 客户端当前状态：关闭"
+  "teamglowing.client.status.disabled": "TeamGlowing 客户端当前状态：关闭",
+  "teamglowing.marker.shared_waypoint": "已共享标记点给队友",
+  "teamglowing.marker.shared_item": "已共享掉落物标记给队友",
+  "teamglowing.marker.cleared": "已清除共享标记",
+  "teamglowing.marker.invalid_target": "请用中键指向一个方块或掉落物",
+  "teamglowing.marker.waypoint": "标记点",
+  "key.teamglowing.share_marker": "共享队友标记",
+  "category.teamglowing": "TeamGlowing"
 }

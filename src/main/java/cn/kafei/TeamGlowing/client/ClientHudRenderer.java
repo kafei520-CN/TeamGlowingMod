@@ -6,13 +6,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.resource.language.I18n;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.JumpingMount;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
@@ -41,6 +42,11 @@ public final class ClientHudRenderer {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = client.player;
         if (player == null || client.world == null) {
+            SMOOTH_POSITIONS.clear();
+            return;
+        }
+
+        if (player.getVehicle() instanceof JumpingMount) {
             SMOOTH_POSITIONS.clear();
             return;
         }
@@ -82,12 +88,12 @@ public final class ClientHudRenderer {
             float currentX = getSmoothedX(getEntryKey(entry), targetX);
             float alpha = getEdgeAlpha(currentX, barLeft, barLeft + BAR_WIDTH);
             int textureIndex = getTextureIndexFromDistance(Math.sqrt(distance));
-            int playerColor = generateColorFromPlayerName(entry.playerName());
+            int playerColor = ClientPlayerColorHelper.getPlayerColor(entry.playerName());
             int markerY = barY + MARKER_Y_OFFSET;
             drawMarker(context, currentX, markerY, textureIndex, playerColor, alpha);
             drawHeightArrow(context, currentX, markerY, entry.y() - camera.getY(), alpha);
             if (showNames) {
-                drawPlayerName(context, entry.name(), currentX, markerY, alpha);
+                drawPlayerName(context, getDisplayName(client, entry), currentX, markerY, alpha);
             }
             rendered++;
         }
@@ -100,7 +106,7 @@ public final class ClientHudRenderer {
 
         int drawX = (int) x - ICON_SIZE / 2;
         int drawY = barY - ICON_SIZE / 2;
-        int darkerColor = darkerColoring(color);
+        int darkerColor = ClientPlayerColorHelper.getDarkerColor(color);
         
         // Convert to ARGB color format with alpha
         int outlineColor = ((int) (alpha * 255.0F) << 24) | (darkerColor & 0xFFFFFF);
@@ -204,16 +210,31 @@ public final class ClientHudRenderer {
         return 3;
     }
 
-    private static int generateColorFromPlayerName(String playerName) {
-        Random random = new Random(playerName.toLowerCase().hashCode());
-        return 0xFF000000 | ((random.nextInt(206) + 50) << 16) | ((random.nextInt(206) + 50) << 8) | (random.nextInt(206) + 50);
+    private static String getDisplayName(MinecraftClient client, TeamLocatorEntry entry) {
+        String name = entry.name();
+        if (client.world == null || entry.dimensionId() == null || entry.dimensionId().isBlank()) {
+            return name;
+        }
+
+        String currentDimensionId = client.world.getRegistryKey().getValue().toString();
+        if (entry.dimensionId().equals(currentDimensionId)) {
+            return name;
+        }
+
+        return name + I18n.translate(getDimensionSuffixKey(entry.dimensionId()));
     }
 
-    private static int darkerColoring(int color) {
-        int red = (int) (((color >> 16) & 0xFF) * 0.55F);
-        int green = (int) (((color >> 8) & 0xFF) * 0.55F);
-        int blue = (int) ((color & 0xFF) * 0.55F);
-        return 0xFF000000 | (red << 16) | (green << 8) | blue;
+    private static String getDimensionSuffixKey(String dimensionId) {
+        if ("minecraft:the_nether".equals(dimensionId)) {
+            return "teamglowing.dimension_suffix.nether";
+        }
+        if ("minecraft:overworld".equals(dimensionId)) {
+            return "teamglowing.dimension_suffix.overworld";
+        }
+        if ("minecraft:the_end".equals(dimensionId)) {
+            return "teamglowing.dimension_suffix.end";
+        }
+        return "teamglowing.dimension_suffix.other";
     }
 
     private static List<TeamLocatorEntry> dedupeEntries(List<TeamLocatorEntry> entries) {

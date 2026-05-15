@@ -24,10 +24,21 @@
   "party.error.no_pending_invite": "You have no pending invite",
   "party.error.party_missing": "That party no longer exists",
   "party.error.cannot_invite_self": "You cannot invite yourself",
+  "teamglowing.dimension_suffix.overworld": " (Overworld)",
+  "teamglowing.dimension_suffix.nether": " (Nether)",
+  "teamglowing.dimension_suffix.end": " (End)",
+  "teamglowing.dimension_suffix.other": " (Other Dimension)",
   "teamglowing.client.enabled": "TeamGlowing client features enabled",
   "teamglowing.client.disabled": "TeamGlowing client features disabled",
   "teamglowing.client.already_enabled": "TeamGlowing client features are already enabled",
   "teamglowing.client.already_disabled": "TeamGlowing client features are already disabled",
   "teamglowing.client.status.enabled": "TeamGlowing client status: enabled",
-  "teamglowing.client.status.disabled": "TeamGlowing client status: disabled"
+  "teamglowing.client.status.disabled": "TeamGlowing client status: disabled",
+  "teamglowing.marker.shared_waypoint": "Shared a waypoint with your teammates",
+  "teamglowing.marker.shared_item": "Shared a dropped item marker with your teammates",
+  "teamglowing.marker.cleared": "Cleared your shared marker",
+  "teamglowing.marker.invalid_target": "Point at a block or dropped item with middle click",
+  "teamglowing.marker.waypoint": "Waypoint",
+  "key.teamglowing.share_marker": "Share Team Marker",
+  "category.teamglowing": "TeamGlowing"
 }

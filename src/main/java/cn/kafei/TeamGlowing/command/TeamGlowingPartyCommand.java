@@ -25,7 +25,12 @@ public final class TeamGlowingPartyCommand {
     }
 
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, PartyManager partyManager, Localization localization, PartyPersistence persistence) {
-        dispatcher.register(CommandManager.literal("teamglow")
+        registerRoot(dispatcher, "teamglow", partyManager, localization, persistence);
+        registerRoot(dispatcher, "tg", partyManager, localization, persistence);
+    }
+
+    private static void registerRoot(CommandDispatcher<ServerCommandSource> dispatcher, String literal, PartyManager partyManager, Localization localization, PartyPersistence persistence) {
+        dispatcher.register(CommandManager.literal(literal)
             .requires(source -> true)
             .then(CommandManager.literal("create")
                 .then(CommandManager.argument("partyName", StringArgumentType.word())
@@ -154,13 +159,13 @@ public final class TeamGlowingPartyCommand {
         Text message = Text.literal(localization.translate(target, "party.invited_target", inviterName, partyName) + " ")
             .append(createActionButton(
                 localization.translate(target, "party.invite_action.accept"),
-                "/teamglow accept",
+                "/tg accept",
                 localization.translate(target, "party.invite_action.accept.hover")
             ))
             .append(Text.literal(" "))
             .append(createActionButton(
                 localization.translate(target, "party.invite_action.reject"),
-                "/teamglow reject",
+                "/tg reject",
                 localization.translate(target, "party.invite_action.reject.hover")
             ));
         target.sendMessage(message, false);

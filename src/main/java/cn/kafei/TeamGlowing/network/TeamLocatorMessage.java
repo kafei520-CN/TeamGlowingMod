@@ -24,10 +24,11 @@ public class TeamLocatorMessage implements CustomPayload {
             String name = buf.readString();
             String playerName = buf.readString();
             String playerId = buf.readString();
+            String dimensionId = buf.readString();
             double x = buf.readDouble();
             double y = buf.readDouble();
             double z = buf.readDouble();
-            this.entries.add(new TeamLocatorEntry(name, playerName, playerId, x, y, z));
+            this.entries.add(new TeamLocatorEntry(name, playerName, playerId, dimensionId, x, y, z));
         }
     }
 
@@ -37,6 +38,7 @@ public class TeamLocatorMessage implements CustomPayload {
             buf.writeString(entry.name());
             buf.writeString(entry.playerName());
             buf.writeString(entry.playerId());
+            buf.writeString(entry.dimensionId());
             buf.writeDouble(entry.x());
             buf.writeDouble(entry.y());
             buf.writeDouble(entry.z());

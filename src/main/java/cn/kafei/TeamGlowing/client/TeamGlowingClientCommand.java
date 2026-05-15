@@ -10,7 +10,12 @@ public final class TeamGlowingClientCommand {
     }
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-        dispatcher.register(ClientCommandManager.literal("teamglowclient")
+        registerRoot(dispatcher, "teamglowclient");
+        registerRoot(dispatcher, "tgc");
+    }
+
+    private static void registerRoot(CommandDispatcher<FabricClientCommandSource> dispatcher, String literal) {
+        dispatcher.register(ClientCommandManager.literal(literal)
             .then(ClientCommandManager.literal("on")
                 .executes(context -> setEnabled(context.getSource(), true)))
             .then(ClientCommandManager.literal("off")
