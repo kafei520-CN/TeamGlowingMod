@@ -25,8 +25,9 @@ public final class ClientWorldMarkerRenderer {
     private static final int ITEM_PING_X_OFFSET = 7;
     private static final int ITEM_PING_Y_OFFSET = 7;
     private static final int LABEL_SPACING = 2;
+    private static final float DISTANCE_TEXT_SCALE = 0.55F;
     private static final float MIN_SCALE = 0.55F;
-    private static final float MAX_SCALE = 0.55F;
+    private static final float MAX_SCALE = 0.85F;
     private static final float MIN_ALPHA = 0.35F;
     private static final List<ProjectedMarker> PROJECTED_MARKERS = new ArrayList<>();
 
@@ -144,11 +145,11 @@ public final class ClientWorldMarkerRenderer {
         context.getMatrices().translate(-iconSize / 2.0F, -iconSize / 2.0F);
 
         if (renderItem) {
+            context.drawItem(marker.itemStack(), 0, 0);
             context.getMatrices().pushMatrix();
             context.getMatrices().translate(ITEM_PING_X_OFFSET, ITEM_PING_Y_OFFSET);
             renderPingIcon(context, marker.color(), alpha);
             context.getMatrices().popMatrix();
-            context.drawItem(marker.itemStack(), 0, 0);
         } else {
             renderPingIcon(context, marker.color(), alpha);
         }
@@ -158,15 +159,9 @@ public final class ClientWorldMarkerRenderer {
         int distanceWidth = client.textRenderer.getWidth(distanceText);
         int iconPixelSize = Math.round(iconSize * marker.scale());
         int drawY = Math.round(marker.screenY() - iconPixelSize / 2.0F);
-
-        context.drawText(
-            client.textRenderer,
-            distanceText,
-            Math.round(marker.screenX() - distanceWidth / 2.0F),
-            drawY + iconPixelSize + LABEL_SPACING,
-            withAlpha(0xFFFFFF, alpha),
-            true
-        );
+        int distanceX = Math.round(marker.screenX() - (distanceWidth * DISTANCE_TEXT_SCALE) / 2.0F);
+        int distanceY = drawY + iconPixelSize + LABEL_SPACING;
+        drawScaledText(context, client, distanceText, distanceX, distanceY, withAlpha(0xFFFFFF, alpha), DISTANCE_TEXT_SCALE);
     }
 
     private static void renderPingIcon(DrawContext context, int color, float alpha) {
@@ -185,6 +180,22 @@ public final class ClientWorldMarkerRenderer {
             return ItemStack.EMPTY;
         }
         return new ItemStack(Registries.ITEM.get(identifier));
+    }
+
+    private static void drawScaledText(
+        DrawContext context,
+        MinecraftClient client,
+        String text,
+        int x,
+        int y,
+        int color,
+        float scale
+    ) {
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(scale, scale);
+        context.drawText(client.textRenderer, text, 0, 0, color, true);
+        context.getMatrices().popMatrix();
     }
 
     private static float getFocalLength(MinecraftClient client, int screenHeight) {
