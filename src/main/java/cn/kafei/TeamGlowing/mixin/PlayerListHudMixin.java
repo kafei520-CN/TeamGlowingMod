@@ -32,7 +32,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(PlayerListHud.class)
+@Mixin(value = PlayerListHud.class, priority = Integer.MAX_VALUE)
 public abstract class PlayerListHudMixin {
     @Unique
     private static final int TEAMGLOWING_OTHER_PARTY_RIGHT_COLOR = 0x808080;
