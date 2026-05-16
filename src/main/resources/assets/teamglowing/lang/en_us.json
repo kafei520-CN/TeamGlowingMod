@@ -21,6 +21,7 @@
   "party.error.empty_name": "Party name cannot be empty",
   "party.error.already_in_party": "You are already in a party",
   "party.error.party_exists": "That party already exists",
+  "party.error.name_too_long": "Party names can be at most 5 characters long",
   "party.error.not_in_party": "You are not in a party",
   "party.error.only_leader_invite": "Only the leader or admins can invite players",
   "party.error.only_leader_manage_admin": "Only the leader can manage party admins",
@@ -48,6 +49,11 @@
   "teamglowing.marker.cleared": "Cleared your shared marker",
   "teamglowing.marker.invalid_target": "Point at a block, dropped item, or entity with middle click",
   "teamglowing.marker.waypoint": "Waypoint",
+  "teamglowing.tab.header.online": "Online: {0}",
+  "teamglowing.tab.header.party": "Party: {0}",
+  "teamglowing.tab.footer.no_party": "You are not in a party",
+  "teamglowing.tab.footer.party_info": "Leader: {0}  Admins: {1}  Members: {2}",
+  "teamglowing.tab.value.none": "None",
   "key.teamglowing.share_marker": "Share Team Marker",
   "category.teamglowing": "TeamGlowing"
 }

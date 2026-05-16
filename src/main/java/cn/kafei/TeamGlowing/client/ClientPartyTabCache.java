@@ -10,6 +10,8 @@ public final class ClientPartyTabCache {
     private static String ownPartyName = "";
     private static Map<String, String> partyByPlayerId = Map.of();
     private static Map<String, String> partyByPlayerName = Map.of();
+    private static Map<String, Integer> sortOrderByPlayerId = Map.of();
+    private static Map<String, Integer> sortOrderByPlayerName = Map.of();
 
     private ClientPartyTabCache() {
     }
@@ -17,6 +19,8 @@ public final class ClientPartyTabCache {
     public static void update(String updatedPartyName, List<PartyTabEntry> entries) {
         Map<String, String> ids = new HashMap<>();
         Map<String, String> names = new HashMap<>();
+        Map<String, Integer> sortOrdersById = new HashMap<>();
+        Map<String, Integer> sortOrdersByName = new HashMap<>();
         for (PartyTabEntry entry : entries) {
             if (entry == null) {
                 continue;
@@ -24,21 +28,28 @@ public final class ClientPartyTabCache {
             String partyName = entry.partyName() == null ? "" : entry.partyName();
             if (entry.playerId() != null && !entry.playerId().isBlank()) {
                 ids.put(entry.playerId(), partyName);
+                sortOrdersById.put(entry.playerId(), Integer.valueOf(entry.sortOrder()));
             }
             if (entry.playerName() != null && !entry.playerName().isBlank()) {
-                names.put(entry.playerName().toLowerCase(Locale.ROOT), partyName);
+                String loweredName = entry.playerName().toLowerCase(Locale.ROOT);
+                names.put(loweredName, partyName);
+                sortOrdersByName.put(loweredName, Integer.valueOf(entry.sortOrder()));
             }
         }
 
         ownPartyName = updatedPartyName == null ? "" : updatedPartyName;
         partyByPlayerId = Map.copyOf(ids);
         partyByPlayerName = Map.copyOf(names);
+        sortOrderByPlayerId = Map.copyOf(sortOrdersById);
+        sortOrderByPlayerName = Map.copyOf(sortOrdersByName);
     }
 
     public static void clear() {
         ownPartyName = "";
         partyByPlayerId = Map.of();
         partyByPlayerName = Map.of();
+        sortOrderByPlayerId = Map.of();
+        sortOrderByPlayerName = Map.of();
     }
 
     public static boolean hasEntries() {
@@ -69,5 +80,18 @@ public final class ClientPartyTabCache {
     public static boolean isSameParty(String playerId, String playerName) {
         String partyName = getPartyName(playerId, playerName);
         return !partyName.isBlank() && partyName.equals(ownPartyName);
+    }
+
+    public static int getSortOrder(String playerId, String playerName) {
+        if (playerId != null) {
+            Integer sortOrder = sortOrderByPlayerId.get(playerId);
+            if (sortOrder != null) {
+                return sortOrder.intValue();
+            }
+        }
+        if (playerName == null) {
+            return Integer.MAX_VALUE;
+        }
+        return sortOrderByPlayerName.getOrDefault(playerName.toLowerCase(Locale.ROOT), Integer.valueOf(Integer.MAX_VALUE)).intValue();
     }
 }

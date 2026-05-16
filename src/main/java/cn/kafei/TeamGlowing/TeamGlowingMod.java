@@ -10,6 +10,7 @@ import cn.kafei.TeamGlowing.sync.GlowSyncService;
 import cn.kafei.TeamGlowing.sync.LocatorSyncService;
 import cn.kafei.TeamGlowing.sync.MarkerSyncService;
 import cn.kafei.TeamGlowing.sync.PartyTabSyncService;
+import cn.kafei.TeamGlowing.sync.TabHeaderFooterSyncService;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -27,6 +28,7 @@ public class TeamGlowingMod implements ModInitializer {
     private static final LocatorSyncService LOCATOR_SYNC_SERVICE = new LocatorSyncService();
     private static final MarkerSyncService MARKER_SYNC_SERVICE = new MarkerSyncService();
     private static final PartyTabSyncService PARTY_TAB_SYNC_SERVICE = new PartyTabSyncService();
+    private static final TabHeaderFooterSyncService TAB_HEADER_FOOTER_SYNC_SERVICE = new TabHeaderFooterSyncService();
 
     @Override
     public void onInitialize() {
@@ -40,7 +42,10 @@ public class TeamGlowingMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> PERSISTENCE.save(PARTY_MANAGER));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> this.onPlayerJoin(handler.player));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> MARKER_SYNC_SERVICE.clearMarker(handler.player.getUuid()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            MARKER_SYNC_SERVICE.clearMarker(handler.player.getUuid());
+            TAB_HEADER_FOOTER_SYNC_SERVICE.clear(handler.player);
+        });
         ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
         TeamGlowingConstants.LOGGER.info("{} initialized for Fabric {}", TeamGlowingConstants.NAME, TeamGlowingConstants.VERSION);
     }
@@ -55,6 +60,7 @@ public class TeamGlowingMod implements ModInitializer {
         TeamGlowingConstants.LOGGER.info("Player joined: {}, syncing party info", player.getGameProfile().getName());
         GLOW_SYNC_SERVICE.syncSinglePlayer(player, PARTY_MANAGER);
         PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
+        TAB_HEADER_FOOTER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         MARKER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
     }
@@ -63,6 +69,7 @@ public class TeamGlowingMod implements ModInitializer {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             GLOW_SYNC_SERVICE.syncVisibilityForPlayer(player, PARTY_MANAGER);
             PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
+            TAB_HEADER_FOOTER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             MARKER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         }

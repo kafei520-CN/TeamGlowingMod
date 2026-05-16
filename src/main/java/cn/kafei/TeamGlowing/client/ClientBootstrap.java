@@ -14,6 +14,7 @@ public final class ClientBootstrap implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientToggleState.load();
+        ClientTabOverlayConfig.load();
         ClientMarkerController.initialize();
         TeamGlowingNetwork.registerClient();
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> TeamGlowingClientCommand.register(dispatcher));

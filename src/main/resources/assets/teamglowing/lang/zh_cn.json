@@ -21,6 +21,7 @@
   "party.error.empty_name": "小队名称不能为空",
   "party.error.already_in_party": "你已经在一个小队中",
   "party.error.party_exists": "该小队已存在",
+  "party.error.name_too_long": "小队名称最多只能使用5个字",
   "party.error.not_in_party": "你当前不在任何小队中",
   "party.error.only_leader_invite": "只有队长或管理员可以邀请玩家",
   "party.error.only_leader_manage_admin": "只有队长可以设置小队管理员",
@@ -48,6 +49,11 @@
   "teamglowing.marker.cleared": "已清除共享标记",
   "teamglowing.marker.invalid_target": "请用中键指向一个方块、掉落物或实体",
   "teamglowing.marker.waypoint": "标记点",
+  "teamglowing.tab.header.online": "在线：{0}",
+  "teamglowing.tab.header.party": "小队：{0}",
+  "teamglowing.tab.footer.no_party": "当前未加入小队",
+  "teamglowing.tab.footer.party_info": "队长：{0}  管理员：{1}  成员：{2}",
+  "teamglowing.tab.value.none": "无",
   "key.teamglowing.share_marker": "共享队友标记",
   "category.teamglowing": "TeamGlowing"
 }

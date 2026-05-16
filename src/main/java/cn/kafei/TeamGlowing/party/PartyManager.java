@@ -15,6 +15,8 @@ import java.util.Set;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 public class PartyManager {
+    public static final int MAX_PARTY_NAME_CHARACTERS = 5;
+
     private final Map<String, Party> partiesByName = new HashMap<>();
     private final Map<String, String> playerPartyByName = new HashMap<>();
     private final Map<String, String> pendingInvites = new HashMap<>();
@@ -51,6 +53,9 @@ public class PartyManager {
         String normalizedName = normalizePartyName(partyName);
         if (normalizedName == null || normalizedName.isEmpty()) {
             throw new IllegalArgumentException("party.error.empty_name");
+        }
+        if (countCodePoints(normalizedName) > MAX_PARTY_NAME_CHARACTERS) {
+            throw new IllegalArgumentException("party.error.name_too_long");
         }
 
         if (this.isInParty(leaderNameKey)) {
@@ -209,6 +214,22 @@ public class PartyManager {
         return new PartyInfo(party.name, leaderName == null ? party.leaderNameKey : leaderName, adminNames, memberNames);
     }
 
+    public int getTabRoleOrder(String playerName) {
+        Party party = this.getPartyByPlayerName(playerName);
+        if (party == null) {
+            return 3;
+        }
+
+        String playerNameKey = normalizePlayerName(playerName);
+        if (party.leaderNameKey.equals(playerNameKey)) {
+            return 0;
+        }
+        if (party.adminNameKeys.contains(playerNameKey)) {
+            return 1;
+        }
+        return 2;
+    }
+
     public Set<String> getKnownPartyNames() {
         return new HashSet<>(this.partiesByName.keySet());
     }
@@ -357,6 +378,11 @@ public class PartyManager {
         String stripped = partyName.strip();
         return stripped.isEmpty() ? "" : stripped.toLowerCase(Locale.ROOT);
     }
+
+    private static int countCodePoints(String value) {
+        return value == null ? 0 : value.codePointCount(0, value.length());
+    }
+
 
     private static String normalizePlayerName(String playerName) {
         return playerName == null ? null : playerName.toLowerCase(Locale.ROOT);

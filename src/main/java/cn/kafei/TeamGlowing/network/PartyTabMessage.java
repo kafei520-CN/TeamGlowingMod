@@ -27,7 +27,8 @@ public class PartyTabMessage implements CustomPayload {
             this.entries.add(new PartyTabEntry(
                 buf.readString(),
                 buf.readString(),
-                buf.readString()
+                buf.readString(),
+                buf.readVarInt()
             ));
         }
     }
@@ -39,6 +40,7 @@ public class PartyTabMessage implements CustomPayload {
             buf.writeString(entry.playerId());
             buf.writeString(entry.playerName());
             buf.writeString(entry.partyName() == null ? "" : entry.partyName());
+            buf.writeVarInt(entry.sortOrder());
         }
     }
 

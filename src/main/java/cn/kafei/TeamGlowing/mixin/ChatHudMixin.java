@@ -31,7 +31,7 @@ public abstract class ChatHudMixin {
     private static final String TEAMGLOWING_CHAT_PADDING = "   ";
 
     @Unique
-    private static final String TEAMGLOWING_CHAT_HEAD_PADDING = "       ";
+    private static final String TEAMGLOWING_CHAT_HEAD_PADDING = "   ";
 
     @Unique
     private static final int TEAMGLOWING_CHAT_ICON_SIZE = 8;
@@ -158,8 +158,7 @@ public abstract class ChatHudMixin {
         MutableText decorated = Text.literal(hasChatHeads ? TEAMGLOWING_CHAT_HEAD_PADDING : TEAMGLOWING_CHAT_PADDING)
             .append(Text.translatable("chat.type.text", playerName.copy(), Text.empty()));
         if (!partyName.isBlank()) {
-            decorated.append(Text.literal(" "))
-                .append(Text.literal("[" + partyName + "]").formatted(Formatting.BLUE))
+            decorated.append(Text.literal("[" + partyName + "]").formatted(Formatting.BLUE))
                 .append(Text.literal(" "));
         }
         return decorated.append(body.copy());
