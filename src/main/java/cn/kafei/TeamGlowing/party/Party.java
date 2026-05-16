@@ -1,14 +1,19 @@
 package cn.kafei.TeamGlowing.party;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 public class Party
 {
-    public final String name;
-    public final int color;
+    public String name;
+    public int color;
+    public BannerMarker bannerMarker;
+    public final Map<String, BannerMarker> locatorMarkers = new LinkedHashMap<>();
+    public final Set<String> hiddenLocatorMarkerKeys = new LinkedHashSet<>();
+    public boolean locatorMarkersHidden;
     public final Set<String> memberNameKeys = new LinkedHashSet<>();
     public final Set<String> adminNameKeys = new LinkedHashSet<>();
     public final Map<String, String> playerNames = new HashMap<>();

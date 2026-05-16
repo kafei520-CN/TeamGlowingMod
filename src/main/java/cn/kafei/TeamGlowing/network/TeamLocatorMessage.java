@@ -21,6 +21,7 @@ public class TeamLocatorMessage implements CustomPayload {
     public TeamLocatorMessage(RegistryByteBuf buf) {
         int size = buf.readVarInt();
         for (int index = 0; index < size; index++) {
+            String entryId = buf.readString();
             String name = buf.readString();
             String playerName = buf.readString();
             String playerId = buf.readString();
@@ -28,13 +29,17 @@ public class TeamLocatorMessage implements CustomPayload {
             double x = buf.readDouble();
             double y = buf.readDouble();
             double z = buf.readDouble();
-            this.entries.add(new TeamLocatorEntry(name, playerName, playerId, dimensionId, x, y, z));
+            boolean banner = buf.readBoolean();
+            boolean partyBanner = buf.readBoolean();
+            int bannerColorId = buf.readVarInt();
+            this.entries.add(new TeamLocatorEntry(entryId, name, playerName, playerId, dimensionId, x, y, z, banner, partyBanner, bannerColorId));
         }
     }
 
     private void write(RegistryByteBuf buf) {
         buf.writeVarInt(this.entries.size());
         for (TeamLocatorEntry entry : this.entries) {
+            buf.writeString(entry.entryId());
             buf.writeString(entry.name());
             buf.writeString(entry.playerName());
             buf.writeString(entry.playerId());
@@ -42,6 +47,9 @@ public class TeamLocatorMessage implements CustomPayload {
             buf.writeDouble(entry.x());
             buf.writeDouble(entry.y());
             buf.writeDouble(entry.z());
+            buf.writeBoolean(entry.banner());
+            buf.writeBoolean(entry.partyBanner());
+            buf.writeVarInt(entry.bannerColorId());
         }
     }
 

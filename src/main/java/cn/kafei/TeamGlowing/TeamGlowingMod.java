@@ -7,19 +7,26 @@ import cn.kafei.TeamGlowing.localization.Localization;
 import cn.kafei.TeamGlowing.network.TeamGlowingNetwork;
 import cn.kafei.TeamGlowing.party.PartyManager;
 import cn.kafei.TeamGlowing.persistence.PartyPersistence;
+import cn.kafei.TeamGlowing.sync.BannerBindingService;
 import cn.kafei.TeamGlowing.sync.GlowSyncService;
 import cn.kafei.TeamGlowing.sync.LocatorSyncService;
 import cn.kafei.TeamGlowing.sync.MarkerSyncService;
+import cn.kafei.TeamGlowing.sync.PartyRespawnService;
 import cn.kafei.TeamGlowing.sync.PartyDisplayNameSyncService;
 import cn.kafei.TeamGlowing.sync.PartyTabSyncService;
 import cn.kafei.TeamGlowing.sync.TabHeaderFooterSyncService;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.WorldSavePath;
 
 public class TeamGlowingMod implements ModInitializer {
@@ -29,6 +36,8 @@ public class TeamGlowingMod implements ModInitializer {
     private static final GlowSyncService GLOW_SYNC_SERVICE = new GlowSyncService();
     private static final LocatorSyncService LOCATOR_SYNC_SERVICE = new LocatorSyncService();
     private static final MarkerSyncService MARKER_SYNC_SERVICE = new MarkerSyncService();
+    private static final BannerBindingService BANNER_BINDING_SERVICE = new BannerBindingService(PARTY_MANAGER, LOCALIZATION, PERSISTENCE);
+    private static final PartyRespawnService PARTY_RESPAWN_SERVICE = new PartyRespawnService(PARTY_MANAGER, LOCALIZATION);
     private static final PartyDisplayNameSyncService PARTY_DISPLAY_NAME_SYNC_SERVICE = new PartyDisplayNameSyncService();
     private static final PartyTabSyncService PARTY_TAB_SYNC_SERVICE = new PartyTabSyncService();
     private static final TabHeaderFooterSyncService TAB_HEADER_FOOTER_SYNC_SERVICE = new TabHeaderFooterSyncService();
@@ -37,12 +46,30 @@ public class TeamGlowingMod implements ModInitializer {
     public void onInitialize() {
         ServerTabOverlayConfig.load();
         TeamGlowingNetwork.register();
-        TeamGlowingNetwork.registerServerReceiver((payload, context) ->
+        TeamGlowingNetwork.registerServerReceiver(cn.kafei.TeamGlowing.network.SetSharedMarkerRequest.ID, (payload, context) ->
             context.server().execute(() -> MARKER_SYNC_SERVICE.handleRequest(context.player(), payload))
+        );
+        TeamGlowingNetwork.registerServerReceiver(cn.kafei.TeamGlowing.network.RequestPartyRespawnMessage.ID, (payload, context) ->
+            PARTY_RESPAWN_SERVICE.requestPartyRespawn(context.player())
         );
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
             TeamGlowingPartyCommand.register(dispatcher, PARTY_MANAGER, LOCALIZATION, PERSISTENCE)
         );
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
+            player instanceof ServerPlayerEntity serverPlayer
+                ? BANNER_BINDING_SERVICE.handleUseBlock(serverPlayer, world, hand, hitResult)
+                : net.minecraft.util.ActionResult.PASS
+        );
+        UseItemCallback.EVENT.register((player, world, hand) ->
+            player instanceof ServerPlayerEntity serverPlayer
+                ? BANNER_BINDING_SERVICE.handleUseItem(serverPlayer, world, hand)
+                : ActionResult.PASS
+        );
+        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
+            if (state.getBlock() instanceof net.minecraft.block.AbstractBannerBlock) {
+                BANNER_BINDING_SERVICE.handleBannerBroken(world, pos);
+            }
+        });
         ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             PERSISTENCE.save(PARTY_MANAGER);
@@ -51,9 +78,11 @@ public class TeamGlowingMod implements ModInitializer {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> this.onPlayerJoin(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             MARKER_SYNC_SERVICE.clearMarker(handler.player.getUuid());
+            PARTY_RESPAWN_SERVICE.clear(handler.player);
             TAB_HEADER_FOOTER_SYNC_SERVICE.clear(handler.player);
             PARTY_DISPLAY_NAME_SYNC_SERVICE.releasePlayerDisplay(server, handler.player);
         });
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> PARTY_RESPAWN_SERVICE.afterRespawn(oldPlayer, newPlayer));
         ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
         TeamGlowingConstants.LOGGER.info("{} initialized for Fabric {}", TeamGlowingConstants.NAME, TeamGlowingConstants.VERSION);
     }
@@ -76,6 +105,8 @@ public class TeamGlowingMod implements ModInitializer {
     }
 
     private void onEndServerTick(MinecraftServer server) {
+        BANNER_BINDING_SERVICE.tick(server);
+        PARTY_RESPAWN_SERVICE.tick(server);
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             GLOW_SYNC_SERVICE.syncVisibilityForPlayer(player, PARTY_MANAGER);
             PARTY_DISPLAY_NAME_SYNC_SERVICE.syncPlayer(server, player, PARTY_MANAGER);

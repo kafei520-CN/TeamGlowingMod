@@ -16,7 +16,7 @@ public final class ClientLocatorCache {
     public static void update(List<TeamLocatorEntry> updatedEntries) {
         Map<String, TeamLocatorEntry> uniqueEntries = new LinkedHashMap<>();
         for (TeamLocatorEntry entry : updatedEntries) {
-            uniqueEntries.putIfAbsent(normalizePlayerKey(entry), entry);
+            uniqueEntries.putIfAbsent(normalizeEntryKey(entry), entry);
         }
         entries = List.copyOf(uniqueEntries.values());
     }
@@ -25,14 +25,25 @@ public final class ClientLocatorCache {
         return entries;
     }
 
+    public static boolean hasPartyBanner() {
+        for (TeamLocatorEntry entry : entries) {
+            if (entry.banner() && entry.partyBanner()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void clear() {
         entries = new ArrayList<>();
     }
 
-    private static String normalizePlayerKey(TeamLocatorEntry entry) {
-        String value = entry.playerId() != null && !entry.playerId().isBlank()
+    private static String normalizeEntryKey(TeamLocatorEntry entry) {
+        String value = entry.entryId() != null && !entry.entryId().isBlank()
+            ? entry.entryId()
+            : (entry.playerId() != null && !entry.playerId().isBlank()
             ? entry.playerId()
-            : (entry.playerName() != null && !entry.playerName().isBlank() ? entry.playerName() : entry.name());
+            : (entry.playerName() != null && !entry.playerName().isBlank() ? entry.playerName() : entry.name()));
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 }

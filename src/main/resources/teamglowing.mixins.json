@@ -7,8 +7,10 @@
   ],
   "client": [
     "ChatHudMixin",
+    "DeathScreenMixin",
     "EntityGlowSuppressionMixin",
-    "PlayerListHudMixin"
+    "PlayerListHudMixin",
+    "SocialInteractionsPlayerListEntryMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -3,6 +3,7 @@ package cn.kafei.TeamGlowing.network;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 public final class TeamGlowingNetwork {
@@ -11,6 +12,7 @@ public final class TeamGlowingNetwork {
 
     public static void register() {
         PayloadTypeRegistry.playC2S().register(SetSharedMarkerRequest.ID, SetSharedMarkerRequest.CODEC);
+        PayloadTypeRegistry.playC2S().register(RequestPartyRespawnMessage.ID, RequestPartyRespawnMessage.CODEC);
         PayloadTypeRegistry.playS2C().register(PartyTabMessage.ID, PartyTabMessage.CODEC);
         PayloadTypeRegistry.playS2C().register(TabOverlayConfigMessage.ID, TabOverlayConfigMessage.CODEC);
         PayloadTypeRegistry.playS2C().register(TeamLocatorMessage.ID, TeamLocatorMessage.CODEC);
@@ -40,7 +42,7 @@ public final class TeamGlowingNetwork {
         ServerPlayNetworking.send(player, message);
     }
 
-    public static void registerServerReceiver(ServerPlayNetworking.PlayPayloadHandler<SetSharedMarkerRequest> handler) {
-        ServerPlayNetworking.registerGlobalReceiver(SetSharedMarkerRequest.ID, handler);
+    public static <T extends CustomPayload> void registerServerReceiver(CustomPayload.Id<T> id, ServerPlayNetworking.PlayPayloadHandler<T> handler) {
+        ServerPlayNetworking.registerGlobalReceiver(id, handler);
     }
 }

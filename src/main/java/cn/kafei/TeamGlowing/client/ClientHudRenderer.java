@@ -6,15 +6,21 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.resource.language.I18n;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.JumpingMount;
+import net.minecraft.item.map.MapDecoration;
+import net.minecraft.item.map.MapDecorationTypes;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.text.Text;
+import net.minecraft.util.DyeColor;
 import net.minecraft.util.math.MathHelper;
 
 public final class ClientHudRenderer {
@@ -24,6 +30,7 @@ public final class ClientHudRenderer {
     private static final int ARROW_SIZE = 9;
     private static final int ARROW_TEXTURE_SIZE = 18;
     private static final int MARKER_Y_OFFSET = 2;
+    private static final int PARTY_BANNER_ACCENT_COLOR = 0xFFD54A;
     private static final int MAX_DISPLAY = 4;
     private static final double MAX_ANGLE = 90.0D;
     private static final double HEIGHT_THRESHOLD = 3.0D;
@@ -90,10 +97,14 @@ public final class ClientHudRenderer {
             float currentX = getSmoothedX(getEntryKey(entry), targetX);
             float alpha = getEdgeAlpha(currentX, barLeft, barLeft + BAR_WIDTH);
             int textureIndex = getTextureIndexFromDistance(Math.sqrt(distance));
-            int playerColor = ClientPlayerColorHelper.getPlayerColor(entry.playerName());
             int markerY = barY + MARKER_Y_OFFSET;
-            drawMarker(context, currentX, markerY, textureIndex, playerColor, alpha);
-            drawHeightArrow(context, currentX, markerY, entry.y() - camera.getY(), alpha);
+            if (entry.banner()) {
+                drawBannerMarker(context, currentX, markerY, entry.bannerColorId(), entry.partyBanner(), alpha);
+            } else {
+                int playerColor = ClientPlayerColorHelper.getPlayerColor(entry.playerName());
+                drawMarker(context, currentX, markerY, textureIndex, playerColor, alpha);
+                drawHeightArrow(context, currentX, markerY, entry.y() - camera.getY(), alpha);
+            }
             if (showNames) {
                 drawPlayerName(context, getDisplayName(client, entry), currentX, markerY, alpha);
             }
@@ -138,6 +149,34 @@ public final class ClientHudRenderer {
         } else {
             context.drawTexture(RenderPipelines.GUI_TEXTURED, ClientHudTextures.ARROW, arrowX, iconTop - ARROW_SIZE, 0, 0, ARROW_SIZE, ARROW_SIZE, ARROW_TEXTURE_SIZE, ARROW_TEXTURE_SIZE, arrowColor);
         }
+    }
+
+    private static void drawBannerMarker(DrawContext context, float x, int barY, int bannerColorId, boolean partyBanner, float alpha) {
+        if (alpha <= 0.02F) {
+            return;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        RegistryEntry<?> type = getBannerDecorationType(bannerColorId);
+        if (type == null) {
+            return;
+        }
+        MapDecoration decoration = new MapDecoration((RegistryEntry) type, (byte) 0, (byte) 0, (byte) 0, Optional.empty());
+        Sprite sprite = client.getMapDecorationsAtlasManager().getSprite(decoration);
+        int drawX = Math.round(x) - ICON_SIZE / 2;
+        int drawY = barY - ICON_SIZE / 2;
+        int color = ((int) (alpha * 255.0F) << 24) | 0xFFFFFF;
+        context.drawSpriteStretched(RenderPipelines.GUI_TEXTURED, sprite, drawX, drawY, ICON_SIZE, ICON_SIZE, color);
+        if (partyBanner) {
+            drawPartyBannerAccent(context, drawX, drawY, alpha);
+        }
+    }
+
+    private static void drawPartyBannerAccent(DrawContext context, int drawX, int drawY, float alpha) {
+        int accentColor = ((int) (alpha * 255.0F) << 24) | PARTY_BANNER_ACCENT_COLOR;
+        context.fill(drawX - 1, drawY - 1, drawX + ICON_SIZE + 1, drawY, accentColor);
+        context.fill(drawX - 1, drawY + ICON_SIZE, drawX + ICON_SIZE + 1, drawY + ICON_SIZE + 1, accentColor);
+        context.fill(drawX - 1, drawY, drawX, drawY + ICON_SIZE, accentColor);
+        context.fill(drawX + ICON_SIZE, drawY, drawX + ICON_SIZE + 1, drawY + ICON_SIZE, accentColor);
     }
 
     private static void drawPlayerName(DrawContext context, String name, float x, int barY, float alpha) {
@@ -261,6 +300,9 @@ public final class ClientHudRenderer {
     }
 
     private static String getEntryKey(TeamLocatorEntry entry) {
+        if (entry.entryId() != null && !entry.entryId().isBlank()) {
+            return entry.entryId().toLowerCase();
+        }
         if (entry.playerId() != null && !entry.playerId().isBlank()) {
             return entry.playerId();
         }
@@ -268,6 +310,29 @@ public final class ClientHudRenderer {
             return entry.playerName().toLowerCase();
         }
         return entry.name().toLowerCase();
+    }
+
+    private static RegistryEntry<?> getBannerDecorationType(int bannerColorId) {
+        DyeColor[] colors = DyeColor.values();
+        DyeColor color = colors[Math.floorMod(bannerColorId, colors.length)];
+        return switch (color) {
+            case WHITE -> MapDecorationTypes.BANNER_WHITE;
+            case ORANGE -> MapDecorationTypes.BANNER_ORANGE;
+            case MAGENTA -> MapDecorationTypes.BANNER_MAGENTA;
+            case LIGHT_BLUE -> MapDecorationTypes.BANNER_LIGHT_BLUE;
+            case YELLOW -> MapDecorationTypes.BANNER_YELLOW;
+            case LIME -> MapDecorationTypes.BANNER_LIME;
+            case PINK -> MapDecorationTypes.BANNER_PINK;
+            case GRAY -> MapDecorationTypes.BANNER_GRAY;
+            case LIGHT_GRAY -> MapDecorationTypes.BANNER_LIGHT_GRAY;
+            case CYAN -> MapDecorationTypes.BANNER_CYAN;
+            case PURPLE -> MapDecorationTypes.BANNER_PURPLE;
+            case BLUE -> MapDecorationTypes.BANNER_BLUE;
+            case BROWN -> MapDecorationTypes.BANNER_BROWN;
+            case GREEN -> MapDecorationTypes.BANNER_GREEN;
+            case RED -> MapDecorationTypes.BANNER_RED;
+            case BLACK -> MapDecorationTypes.BANNER_BLACK;
+        };
     }
 
     private record SmoothedPosition(float x, long updatedAtMillis) {

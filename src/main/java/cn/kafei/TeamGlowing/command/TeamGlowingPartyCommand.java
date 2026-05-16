@@ -36,6 +36,13 @@ public final class TeamGlowingPartyCommand {
             .then(CommandManager.literal("create")
                 .then(CommandManager.argument("input", StringArgumentType.greedyString())
                     .executes(context -> handleCreate(context, partyManager, localization, persistence))))
+            .then(CommandManager.literal("rename")
+                .then(CommandManager.argument("name", StringArgumentType.greedyString())
+                    .executes(context -> handleRename(context, partyManager, localization, persistence))))
+            .then(CommandManager.literal("color")
+                .then(CommandManager.argument("color", StringArgumentType.greedyString())
+                    .suggests((context, builder) -> CommandSource.suggestMatching(PartyColorHelper.getSuggestedInputs(), builder))
+                    .executes(context -> handleColor(context, partyManager, localization, persistence))))
             .then(CommandManager.literal("invite")
                 .then(CommandManager.argument("player", StringArgumentType.word())
                     .suggests((context, builder) -> CommandSource.suggestMatching(
@@ -98,6 +105,36 @@ public final class TeamGlowingPartyCommand {
             PartyInfo info = partyManager.getPartyInfo(PartyManager.getPlayerName(player));
             player.sendMessage(Text.literal(localization.translate(player, "party.invited_sender", target.getName().getString(), info.name)), false);
             sendInviteMessage(target, localization, player.getName().getString(), info.name);
+            return 1;
+        } catch (IllegalStateException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
+        }
+    }
+
+    private static int handleRename(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        String newPartyName = StringArgumentType.getString(context, "name");
+        try {
+            String renamedParty = partyManager.renameParty(PartyManager.getPlayerName(player), newPartyName);
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.renamed", renamedParty)), false);
+            return 1;
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+            throw error(localization.translate(player, exception.getMessage()));
+        }
+    }
+
+    private static int handleColor(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        Integer partyColor = PartyColorHelper.parse(StringArgumentType.getString(context, "color"));
+        if (partyColor == null) {
+            throw error(localization.translate(player, "party.error.invalid_color"));
+        }
+
+        try {
+            int updatedColor = partyManager.setPartyColor(PartyManager.getPlayerName(player), partyColor.intValue());
+            persistence.save(partyManager);
+            player.sendMessage(Text.literal(localization.translate(player, "party.color.updated", PartyColorHelper.formatHex(updatedColor))), false);
             return 1;
         } catch (IllegalStateException exception) {
             throw error(localization.translate(player, exception.getMessage()));

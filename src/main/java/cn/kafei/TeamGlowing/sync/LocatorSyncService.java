@@ -2,6 +2,7 @@ package cn.kafei.TeamGlowing.sync;
 
 import cn.kafei.TeamGlowing.network.TeamGlowingNetwork;
 import cn.kafei.TeamGlowing.network.TeamLocatorEntry;
+import cn.kafei.TeamGlowing.party.BannerMarker;
 import cn.kafei.TeamGlowing.network.TeamLocatorMessage;
 import cn.kafei.TeamGlowing.party.PartyManager;
 import java.util.ArrayList;
@@ -11,12 +12,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.Identifier;
 import net.minecraft.world.World;
 
 public class LocatorSyncService {
@@ -33,8 +36,16 @@ public class LocatorSyncService {
     );
 
     public void syncToPlayer(ServerPlayerEntity player, PartyManager partyManager) {
+        if (player.getServer() != null) {
+            partyManager.pruneMissingBanners(player.getServer());
+        }
+
         List<ServerPlayerEntity> teammates = partyManager.getOnlineTeammates(player);
         Map<String, TeamLocatorEntry> uniqueEntries = new LinkedHashMap<>();
+        for (BannerMarker marker : partyManager.getLocatorBanners(player.getGameProfile().getName())) {
+            this.addBannerEntry(player, uniqueEntries, "locator-banner:" + PartyManager.getMarkerKey(marker), marker, false);
+        }
+        this.addBannerEntry(player, uniqueEntries, "party-banner", partyManager.getPartyBanner(player.getGameProfile().getName()), true);
         for (ServerPlayerEntity teammate : teammates) {
             if (this.shouldHideLocator(teammate)) {
                 continue;
@@ -68,14 +79,50 @@ public class LocatorSyncService {
         }
 
         return new TeamLocatorEntry(
+                teammate.getUuidAsString(),
                 teammate.getName().getString(),
                 teammate.getGameProfile().getName(),
                 teammate.getUuidAsString(),
                 teammateDimension.getValue().toString(),
                 x,
                 teammate.getY(),
-                z
+                z,
+                false,
+                false,
+                0
             );
+    }
+
+    private void addBannerEntry(ServerPlayerEntity viewer, Map<String, TeamLocatorEntry> uniqueEntries, String entryId, BannerMarker marker, boolean partyBanner) {
+        if (marker == null) {
+            return;
+        }
+        RegistryKey<World> viewerDimension = viewer.getWorld().getRegistryKey();
+        RegistryKey<World> markerDimension = RegistryKey.of(RegistryKeys.WORLD, Identifier.of(marker.dimensionId()));
+        if (!canDisplayAcrossDimensions(viewerDimension, markerDimension)) {
+            return;
+        }
+        double x = marker.x() + 0.5D;
+        double z = marker.z() + 0.5D;
+        if (!viewerDimension.equals(markerDimension)) {
+            double scale = getCoordinateScale(markerDimension, viewerDimension);
+            x *= scale;
+            z *= scale;
+        }
+        TeamLocatorEntry entry = new TeamLocatorEntry(
+            entryId,
+            marker.name(),
+            "",
+            "",
+            marker.dimensionId(),
+            x,
+            marker.y(),
+            z,
+            true,
+            partyBanner,
+            marker.bannerColorId()
+        );
+        uniqueEntries.putIfAbsent(entryId, entry);
     }
 
     private boolean shouldHideLocator(ServerPlayerEntity player) {

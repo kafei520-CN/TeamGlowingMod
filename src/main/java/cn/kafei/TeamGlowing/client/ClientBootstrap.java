@@ -28,11 +28,13 @@ public final class ClientBootstrap implements ClientModInitializer {
         WorldRenderEvents.AFTER_ENTITIES.register(ClientWorldMarkerRenderer::render);
         ClientTickEvents.END_CLIENT_TICK.register(ClientToggleState::suppressTeammateGlow);
         ClientTickEvents.END_CLIENT_TICK.register(ClientMarkerController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(PartyRespawnRequestScheduler::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ClientPartyTabCache.clear();
             ClientServerTabOverlayConfigCache.clear();
             ClientLocatorCache.clear();
             ClientWorldMarkerCache.clear();
+            PartyRespawnRequestScheduler.clear();
         });
     }
 }
