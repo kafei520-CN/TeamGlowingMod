@@ -192,22 +192,13 @@ public abstract class ChatHudMixin {
 
     @Unique
     private void teamglowing$renderSplitDiamond(DrawContext context, int x, int y, int leftColor, int rightColor) {
-        teamglowing$drawSplitDiamondRow(context, x + 2, y, 2, leftColor, rightColor);
-        teamglowing$drawSplitDiamondRow(context, x + 1, y + 1, 4, leftColor, rightColor);
-        teamglowing$drawSplitDiamondRow(context, x, y + 2, 6, leftColor, rightColor);
-        teamglowing$drawSplitDiamondRow(context, x, y + 3, 6, leftColor, rightColor);
-        teamglowing$drawSplitDiamondRow(context, x + 1, y + 4, 4, leftColor, rightColor);
-        teamglowing$drawSplitDiamondRow(context, x + 2, y + 5, 2, leftColor, rightColor);
-    }
-
-    @Unique
-    private void teamglowing$drawSplitDiamondRow(DrawContext context, int x, int y, int width, int leftColor, int rightColor) {
-        int leftWidth = (width + 1) / 2;
-        int rightWidth = width - leftWidth;
-        context.fill(x, y, x + leftWidth, y + 1, leftColor);
-        if (rightWidth > 0) {
-            context.fill(x + leftWidth, y, x + width, y + 1, rightColor);
-        }
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F);
+        context.getMatrices().mul(new Matrix3x2f().rotateLocal((float) (Math.PI / 4.0D)));
+        context.getMatrices().translate(-TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F);
+        context.fill(0, 0, 3, 6, leftColor);
+        context.fill(3, 0, 6, 6, rightColor);
+        context.getMatrices().popMatrix();
     }
 
     @Unique
