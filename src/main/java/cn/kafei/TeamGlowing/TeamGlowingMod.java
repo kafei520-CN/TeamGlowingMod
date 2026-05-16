@@ -1,6 +1,7 @@
 package cn.kafei.TeamGlowing;
 
 import cn.kafei.TeamGlowing.command.TeamGlowingPartyCommand;
+import cn.kafei.TeamGlowing.config.ServerTabOverlayConfig;
 import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
 import cn.kafei.TeamGlowing.localization.Localization;
 import cn.kafei.TeamGlowing.network.TeamGlowingNetwork;
@@ -9,6 +10,7 @@ import cn.kafei.TeamGlowing.persistence.PartyPersistence;
 import cn.kafei.TeamGlowing.sync.GlowSyncService;
 import cn.kafei.TeamGlowing.sync.LocatorSyncService;
 import cn.kafei.TeamGlowing.sync.MarkerSyncService;
+import cn.kafei.TeamGlowing.sync.PartyDisplayNameSyncService;
 import cn.kafei.TeamGlowing.sync.PartyTabSyncService;
 import cn.kafei.TeamGlowing.sync.TabHeaderFooterSyncService;
 import net.fabricmc.api.ModInitializer;
@@ -27,11 +29,13 @@ public class TeamGlowingMod implements ModInitializer {
     private static final GlowSyncService GLOW_SYNC_SERVICE = new GlowSyncService();
     private static final LocatorSyncService LOCATOR_SYNC_SERVICE = new LocatorSyncService();
     private static final MarkerSyncService MARKER_SYNC_SERVICE = new MarkerSyncService();
+    private static final PartyDisplayNameSyncService PARTY_DISPLAY_NAME_SYNC_SERVICE = new PartyDisplayNameSyncService();
     private static final PartyTabSyncService PARTY_TAB_SYNC_SERVICE = new PartyTabSyncService();
     private static final TabHeaderFooterSyncService TAB_HEADER_FOOTER_SYNC_SERVICE = new TabHeaderFooterSyncService();
 
     @Override
     public void onInitialize() {
+        ServerTabOverlayConfig.load();
         TeamGlowingNetwork.register();
         TeamGlowingNetwork.registerServerReceiver((payload, context) ->
             context.server().execute(() -> MARKER_SYNC_SERVICE.handleRequest(context.player(), payload))
@@ -40,11 +44,15 @@ public class TeamGlowingMod implements ModInitializer {
             TeamGlowingPartyCommand.register(dispatcher, PARTY_MANAGER, LOCALIZATION, PERSISTENCE)
         );
         ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> PERSISTENCE.save(PARTY_MANAGER));
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            PERSISTENCE.save(PARTY_MANAGER);
+            PARTY_DISPLAY_NAME_SYNC_SERVICE.cleanup(server);
+        });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> this.onPlayerJoin(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             MARKER_SYNC_SERVICE.clearMarker(handler.player.getUuid());
             TAB_HEADER_FOOTER_SYNC_SERVICE.clear(handler.player);
+            PARTY_DISPLAY_NAME_SYNC_SERVICE.releasePlayerDisplay(server, handler.player);
         });
         ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
         TeamGlowingConstants.LOGGER.info("{} initialized for Fabric {}", TeamGlowingConstants.NAME, TeamGlowingConstants.VERSION);
@@ -54,11 +62,13 @@ public class TeamGlowingMod implements ModInitializer {
         PERSISTENCE.setSaveFilePath(server.getSavePath(WorldSavePath.ROOT).resolve("teamglowing-parties.json"));
         TeamGlowingConstants.LOGGER.info("Loading party data from: {}", server.getSavePath(WorldSavePath.ROOT).resolve("teamglowing-parties.json"));
         PERSISTENCE.load(PARTY_MANAGER);
+        PARTY_DISPLAY_NAME_SYNC_SERVICE.cleanup(server);
     }
 
     private void onPlayerJoin(ServerPlayerEntity player) {
         TeamGlowingConstants.LOGGER.info("Player joined: {}, syncing party info", player.getGameProfile().getName());
         GLOW_SYNC_SERVICE.syncSinglePlayer(player, PARTY_MANAGER);
+        PARTY_DISPLAY_NAME_SYNC_SERVICE.syncPlayer(player.getServer(), player, PARTY_MANAGER);
         PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         TAB_HEADER_FOOTER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
         LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
@@ -68,6 +78,7 @@ public class TeamGlowingMod implements ModInitializer {
     private void onEndServerTick(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             GLOW_SYNC_SERVICE.syncVisibilityForPlayer(player, PARTY_MANAGER);
+            PARTY_DISPLAY_NAME_SYNC_SERVICE.syncPlayer(server, player, PARTY_MANAGER);
             PARTY_TAB_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             TAB_HEADER_FOOTER_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);
             LOCATOR_SYNC_SERVICE.syncToPlayer(player, PARTY_MANAGER);

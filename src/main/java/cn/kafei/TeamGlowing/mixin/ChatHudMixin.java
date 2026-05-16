@@ -1,7 +1,7 @@
 package cn.kafei.TeamGlowing.mixin;
 
-import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
 import cn.kafei.TeamGlowing.client.ClientPartyTabCache;
+import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -12,7 +12,6 @@ import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextContent;
 import net.minecraft.text.TranslatableTextContent;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3x2f;
@@ -27,6 +26,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ChatHud.class)
 public abstract class ChatHudMixin {
+    @Unique
+    private static final int TEAMGLOWING_OTHER_PARTY_RIGHT_COLOR = 0x808080;
+
     @Unique
     private static final String TEAMGLOWING_CHAT_PADDING = "   ";
 
@@ -129,7 +131,7 @@ public abstract class ChatHudMixin {
 
             int y = -lineIndex * this.getLineHeight() - 8;
             int renderOffsetX = hasChatHeads ? TEAMGLOWING_CHAT_HEAD_ICON_OFFSET : 1;
-            teamglowing$renderDiamond(context, renderOffsetX, y, marker.color(), marker.self(), alpha / 255.0F);
+            teamglowing$renderDiamond(context, renderOffsetX, y, marker.color(), marker.self(), marker.sameParty(), marker.hasParty(), alpha / 255.0F);
         }
 
         context.getMatrices().popMatrix();
@@ -152,21 +154,28 @@ public abstract class ChatHudMixin {
 
         Text playerName = teamglowing$toText(args[0]);
         Text body = teamglowing$toText(args[1]);
-        String partyName = ClientPartyTabCache.getPartyName(null, playerName.getString());
+        String cleanPlayerName = teamglowing$stripDecoratedPlayerName(playerName.getString());
+        String partyName = ClientPartyTabCache.getPartyName(null, cleanPlayerName);
         boolean hasChatHeads = FabricLoader.getInstance().isModLoaded("chat_heads");
 
         MutableText decorated = Text.literal(hasChatHeads ? TEAMGLOWING_CHAT_HEAD_PADDING : TEAMGLOWING_CHAT_PADDING)
-            .append(Text.translatable("chat.type.text", playerName.copy(), Text.empty()));
+            .append(Text.translatable("chat.type.text", Text.literal(cleanPlayerName), Text.empty()));
         if (!partyName.isBlank()) {
-            decorated.append(Text.literal("[" + partyName + "]").formatted(Formatting.BLUE))
+            int partyColor = ClientPartyTabCache.getPartyColor(null, cleanPlayerName);
+            decorated.append(Text.literal("[" + partyName + "]").styled(style -> style.withColor(partyColor)))
                 .append(Text.literal(" "));
         }
         return decorated.append(body.copy());
     }
 
     @Unique
-    private void teamglowing$renderDiamond(DrawContext context, int x, int y, int rgbColor, boolean self, float alpha) {
+    private void teamglowing$renderDiamond(DrawContext context, int x, int y, int rgbColor, boolean self, boolean sameParty, boolean hasParty, float alpha) {
         int fullColor = (MathHelper.clamp((int) (alpha * 255.0F), 0, 255) << 24) | (rgbColor & 0xFFFFFF);
+
+        if (hasParty && !sameParty && !self) {
+            teamglowing$renderSplitDiamond(context, x, y, withAlpha(0xFFFFFF, alpha), withAlpha(TEAMGLOWING_OTHER_PARTY_RIGHT_COLOR, alpha));
+            return;
+        }
 
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F);
@@ -179,6 +188,26 @@ public abstract class ChatHudMixin {
             context.fill(0, 0, 6, 6, fullColor);
         }
         context.getMatrices().popMatrix();
+    }
+
+    @Unique
+    private void teamglowing$renderSplitDiamond(DrawContext context, int x, int y, int leftColor, int rightColor) {
+        teamglowing$drawSplitDiamondRow(context, x + 2, y, 2, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 1, y + 1, 4, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x, y + 2, 6, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x, y + 3, 6, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 1, y + 4, 4, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 2, y + 5, 2, leftColor, rightColor);
+    }
+
+    @Unique
+    private void teamglowing$drawSplitDiamondRow(DrawContext context, int x, int y, int width, int leftColor, int rightColor) {
+        int leftWidth = (width + 1) / 2;
+        int rightWidth = width - leftWidth;
+        context.fill(x, y, x + leftWidth, y + 1, leftColor);
+        if (rightWidth > 0) {
+            context.fill(x + leftWidth, y, x + width, y + 1, rightColor);
+        }
     }
 
     @Unique
@@ -201,15 +230,21 @@ public abstract class ChatHudMixin {
             return null;
         }
 
-        String playerName = line.substring(1, nameEnd);
+        String playerName = teamglowing$stripDecoratedPlayerName(line.substring(1, nameEnd));
         boolean self = teamglowing$isSelf(playerName);
         boolean hasParty = ClientPartyTabCache.hasParty(null, playerName);
         boolean sameParty = ClientPartyTabCache.isSameParty(null, playerName);
-        int color = (sameParty || (self && hasParty))
+        int color = hasParty
             ? (ClientPlayerColorHelper.getPlayerColor(playerName) & 0xFFFFFF)
             : 0xFFFFFF;
         int nameWidth = this.client.textRenderer.getWidth("<" + playerName + ">");
-        return new TeamglowingChatMarker(color, self, nameWidth);
+        return new TeamglowingChatMarker(color, self, sameParty, hasParty, nameWidth);
+    }
+
+    @Unique
+    private int withAlpha(int rgbColor, float alpha) {
+        int alphaChannel = MathHelper.clamp((int) (alpha * 255.0F), 0, 255);
+        return (alphaChannel << 24) | (rgbColor & 0xFFFFFF);
     }
 
     @Unique
@@ -236,6 +271,18 @@ public abstract class ChatHudMixin {
     }
 
     @Unique
-    private record TeamglowingChatMarker(int color, boolean self, int nameWidth) {
+    private String teamglowing$stripDecoratedPlayerName(String value) {
+        if (value == null) {
+            return "";
+        }
+        int suffixStart = value.lastIndexOf(" [");
+        if (suffixStart > 0 && value.endsWith("]")) {
+            return value.substring(0, suffixStart);
+        }
+        return value;
+    }
+
+    @Unique
+    private record TeamglowingChatMarker(int color, boolean self, boolean sameParty, boolean hasParty, int nameWidth) {
     }
 }

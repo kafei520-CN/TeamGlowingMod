@@ -1,5 +1,9 @@
 package cn.kafei.TeamGlowing.sync;
 
+import cn.kafei.TeamGlowing.config.ServerTabOverlayConfig;
+import cn.kafei.TeamGlowing.config.TabOverlayConfigState;
+import cn.kafei.TeamGlowing.network.TabOverlayConfigMessage;
+import cn.kafei.TeamGlowing.network.TeamGlowingNetwork;
 import cn.kafei.TeamGlowing.party.PartyInfo;
 import cn.kafei.TeamGlowing.party.PartyManager;
 import java.util.Locale;
@@ -13,6 +17,7 @@ import net.minecraft.text.Text;
 
 public final class TabHeaderFooterSyncService {
     private final Map<UUID, String> lastContentByPlayer = new HashMap<>();
+    private final Map<UUID, String> lastConfigSignatureByPlayer = new HashMap<>();
 
     public void syncToPlayer(ServerPlayerEntity player, PartyManager partyManager) {
         PartyInfo partyInfo = partyManager.getPartyInfo(player.getGameProfile().getName());
@@ -21,15 +26,18 @@ public final class TabHeaderFooterSyncService {
         String signature = header.getString() + "\n" + footer.getString();
         UUID playerId = player.getUuid();
         if (signature.equals(this.lastContentByPlayer.get(playerId))) {
+            this.syncConfigToPlayer(player);
             return;
         }
 
         player.networkHandler.sendPacket(new PlayerListHeaderS2CPacket(header, footer));
         this.lastContentByPlayer.put(playerId, signature);
+        this.syncConfigToPlayer(player);
     }
 
     public void clear(ServerPlayerEntity player) {
         this.lastContentByPlayer.remove(player.getUuid());
+        this.lastConfigSignatureByPlayer.remove(player.getUuid());
     }
 
     private Text buildHeader(ServerPlayerEntity player, PartyInfo partyInfo) {
@@ -42,6 +50,29 @@ public final class TabHeaderFooterSyncService {
 
     private Text buildFooter(PartyInfo partyInfo) {
         return Text.empty();
+    }
+
+    private void syncConfigToPlayer(ServerPlayerEntity player) {
+        TabOverlayConfigState config = ServerTabOverlayConfig.get();
+        String signature = this.getConfigSignature(config);
+        UUID playerId = player.getUuid();
+        if (signature.equals(this.lastConfigSignatureByPlayer.get(playerId))) {
+            return;
+        }
+        TeamGlowingNetwork.sendTo(player, new TabOverlayConfigMessage(config));
+        this.lastConfigSignatureByPlayer.put(playerId, signature);
+    }
+
+    private String getConfigSignature(TabOverlayConfigState config) {
+        return config.topBorderEnabled()
+            + "|" + config.topBorderText()
+            + "|" + String.join("\n", config.headerLines())
+            + "|" + String.join("\n", config.footerLines())
+            + "|" + config.welcomeText()
+            + "|" + config.welcomeWidth()
+            + "|" + config.welcomeIntervalMs()
+            + "|" + config.bottomBorderEnabled()
+            + "|" + config.bottomBorderText();
     }
 
     private String getServerTps(MinecraftServer server) {

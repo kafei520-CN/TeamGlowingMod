@@ -14,7 +14,6 @@ public final class ClientBootstrap implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientToggleState.load();
-        ClientTabOverlayConfig.load();
         ClientMarkerController.initialize();
         TeamGlowingNetwork.registerClient();
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> TeamGlowingClientCommand.register(dispatcher));
@@ -31,6 +30,7 @@ public final class ClientBootstrap implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(ClientMarkerController::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ClientPartyTabCache.clear();
+            ClientServerTabOverlayConfigCache.clear();
             ClientLocatorCache.clear();
             ClientWorldMarkerCache.clear();
         });

@@ -1,6 +1,5 @@
-package cn.kafei.TeamGlowing.client;
+package cn.kafei.TeamGlowing.config;
 
-import cn.kafei.TeamGlowing.config.TabOverlayConfigState;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -14,10 +13,9 @@ import java.util.List;
 import java.util.Properties;
 import net.fabricmc.loader.api.FabricLoader;
 
-public final class ClientTabOverlayConfig {
+public final class ServerTabOverlayConfig {
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("teamglowing-tab.properties");
     private static final long RELOAD_INTERVAL_MS = 1000L;
-    private static final String DEFAULT_BORDER = "%border%";
     private static final List<String> ORDERED_KEYS = List.of(
         "top_border.enabled",
         "top_border.text",
@@ -33,22 +31,23 @@ public final class ClientTabOverlayConfig {
         "bottom_border.enabled",
         "bottom_border.text"
     );
-    private static TabOverlayConfigState state = createDefaultState();
+
+    private static TabOverlayConfigState state = TabOverlayConfigDefaults.createState();
     private static long lastCheckedAt = 0L;
     private static long lastModifiedAt = Long.MIN_VALUE;
 
-    private ClientTabOverlayConfig() {
+    private ServerTabOverlayConfig() {
     }
 
     public static void load() {
-        synchronized (ClientTabOverlayConfig.class) {
+        synchronized (ServerTabOverlayConfig.class) {
             ensureConfigFile();
             loadInternal();
         }
     }
 
     public static TabOverlayConfigState get() {
-        synchronized (ClientTabOverlayConfig.class) {
+        synchronized (ServerTabOverlayConfig.class) {
             long now = System.currentTimeMillis();
             if (now - lastCheckedAt >= RELOAD_INTERVAL_MS) {
                 lastCheckedAt = now;
@@ -65,7 +64,6 @@ public final class ClientTabOverlayConfig {
         if (Files.exists(CONFIG_PATH)) {
             return;
         }
-
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
             saveProperties(createDefaultProperties());
@@ -78,22 +76,22 @@ public final class ClientTabOverlayConfig {
         try (BufferedReader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {
             boolean rewriteAsUtf8 = containsUnicodeEscapes();
             properties.load(reader);
-            if (migrateLegacyEnglishDefaults(properties) || rewriteAsUtf8) {
+            if (migrateLegacyDefaults(properties) || rewriteAsUtf8) {
                 saveProperties(properties);
             }
             state = new TabOverlayConfigState(
                 Boolean.parseBoolean(properties.getProperty("top_border.enabled", "true")),
-                properties.getProperty("top_border.text", DEFAULT_BORDER),
+                properties.getProperty("top_border.text", TabOverlayConfigDefaults.DEFAULT_BORDER),
                 readIndexedLines(properties, "header.line."),
                 readIndexedLines(properties, "footer.line."),
                 properties.getProperty("welcome.text", "欢迎来到 TeamGlowing，%player%"),
                 parseInt(properties.getProperty("welcome.width", "18"), 18),
                 parseLong(properties.getProperty("welcome.interval_ms", "120"), 120L),
                 Boolean.parseBoolean(properties.getProperty("bottom_border.enabled", "true")),
-                properties.getProperty("bottom_border.text", DEFAULT_BORDER)
+                properties.getProperty("bottom_border.text", TabOverlayConfigDefaults.DEFAULT_BORDER)
             );
         } catch (IOException ignored) {
-            state = createDefaultState();
+            state = TabOverlayConfigDefaults.createState();
         }
         lastModifiedAt = getModifiedTime();
     }
@@ -103,8 +101,7 @@ public final class ClientTabOverlayConfig {
             return false;
         }
         try {
-            String content = Files.readString(CONFIG_PATH, StandardCharsets.UTF_8);
-            return content.contains("\\u");
+            return Files.readString(CONFIG_PATH, StandardCharsets.UTF_8).contains("\\u");
         } catch (IOException ignored) {
             return false;
         }
@@ -149,29 +146,33 @@ public final class ClientTabOverlayConfig {
 
     private static Properties createDefaultProperties() {
         Properties properties = new Properties();
-        properties.setProperty("top_border.enabled", "true");
-        properties.setProperty("top_border.text", DEFAULT_BORDER);
-        properties.setProperty("header.line.1", "&b&lTeam&f&lGlowing");
-        properties.setProperty("header.line.2", "&3&l>> &f%welcome% &3&l<<");
-        properties.setProperty("header.line.3", "&7延迟: &f%ping%  &8|  &7TPS: &b%tps%  &8|  &7MSPT: &f%mspt%");
-        properties.setProperty("header.line.4", "&7内存: &f%memory%");
-        properties.setProperty("header.line.5", "&7日期: &f%date%  &8|  &7时间: &f%time%");
-        properties.setProperty("footer.line.1", "&7小队: &b%party%  &8|  &7在线: &f%online%");
-        properties.setProperty("welcome.text", "&f欢迎来到 &bTeamGlowing&f，%player%");
-        properties.setProperty("welcome.width", "18");
-        properties.setProperty("welcome.interval_ms", "120");
-        properties.setProperty("bottom_border.enabled", "true");
-        properties.setProperty("bottom_border.text", DEFAULT_BORDER);
+        TabOverlayConfigState defaults = TabOverlayConfigDefaults.createState();
+        properties.setProperty("top_border.enabled", Boolean.toString(defaults.topBorderEnabled()));
+        properties.setProperty("top_border.text", defaults.topBorderText());
+        int index = 1;
+        for (String line : defaults.headerLines()) {
+            properties.setProperty("header.line." + index, line);
+            index++;
+        }
+        index = 1;
+        for (String line : defaults.footerLines()) {
+            properties.setProperty("footer.line." + index, line);
+            index++;
+        }
+        properties.setProperty("welcome.text", defaults.welcomeText());
+        properties.setProperty("welcome.width", Integer.toString(defaults.welcomeWidth()));
+        properties.setProperty("welcome.interval_ms", Long.toString(defaults.welcomeIntervalMs()));
+        properties.setProperty("bottom_border.enabled", Boolean.toString(defaults.bottomBorderEnabled()));
+        properties.setProperty("bottom_border.text", defaults.bottomBorderText());
         return properties;
     }
 
-    private static boolean migrateLegacyEnglishDefaults(Properties properties) {
+    private static boolean migrateLegacyDefaults(Properties properties) {
         boolean changed = false;
-        changed |= replaceIfEquals(properties, "top_border.text", "&f&m================================================", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "top_border.text", "&8&m================================================", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "top_border.text", "&6===&f&m==========================================&6===", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "top_border.text", "&8&m==&6&m===&e&m====&f&m==============================&e&m====&6&m===&8&m==", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "top_border.text", DEFAULT_BORDER, DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "top_border.text", "&f&m================================================", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "top_border.text", "&8&m================================================", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "top_border.text", "&6===&f&m==========================================&6===", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "top_border.text", "&8&m==&6&m===&e&m====&f&m==============================&e&m====&6&m===&8&m==", TabOverlayConfigDefaults.DEFAULT_BORDER);
         changed |= replaceIfEquals(properties, "header.line.1", "&3&lTeamGlowing", "&b&lTeam&f&lGlowing");
         changed |= replaceIfEquals(properties, "header.line.1", "&b&lTeamGlowing", "&b&lTeam&f&lGlowing");
         changed |= replaceIfEquals(properties, "header.line.2", "&7>> &fWelcome, %player% &7<<", "&3&l>> &f欢迎你，%player% &3&l<<");
@@ -192,11 +193,10 @@ public final class ClientTabOverlayConfig {
         changed |= ensureProperty(properties, "welcome.text", "&f欢迎来到 &bTeamGlowing&f，%player%");
         changed |= ensureProperty(properties, "welcome.width", "18");
         changed |= ensureProperty(properties, "welcome.interval_ms", "120");
-        changed |= replaceIfEquals(properties, "bottom_border.text", "&f&m================================================", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "bottom_border.text", "&8&m================================================", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "bottom_border.text", "&6===&f&m==========================================&6===", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "bottom_border.text", "&8&m==&6&m===&e&m====&f&m==============================&e&m====&6&m===&8&m==", DEFAULT_BORDER);
-        changed |= replaceIfEquals(properties, "bottom_border.text", DEFAULT_BORDER, DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "bottom_border.text", "&f&m================================================", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "bottom_border.text", "&8&m================================================", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "bottom_border.text", "&6===&f&m==========================================&6===", TabOverlayConfigDefaults.DEFAULT_BORDER);
+        changed |= replaceIfEquals(properties, "bottom_border.text", "&8&m==&6&m===&e&m====&f&m==============================&e&m====&6&m===&8&m==", TabOverlayConfigDefaults.DEFAULT_BORDER);
         return changed;
     }
 
@@ -231,7 +231,6 @@ public final class ClientTabOverlayConfig {
                     writer.newLine();
                 }
             }
-
             List<String> extraKeys = new ArrayList<>();
             for (String key : properties.stringPropertyNames()) {
                 if (!ORDERED_KEYS.contains(key)) {
@@ -298,25 +297,5 @@ public final class ClientTabOverlayConfig {
             }
         }
         return builder.toString();
-    }
-
-    private static TabOverlayConfigState createDefaultState() {
-        return new TabOverlayConfigState(
-            true,
-            DEFAULT_BORDER,
-            List.of(
-                "&b&lTeam&f&lGlowing",
-                "&3&l>> &f%welcome% &3&l<<",
-                "&7延迟: &f%ping%  &8|  &7TPS: &b%tps%  &8|  &7MSPT: &f%mspt%",
-                "&7内存: &f%memory%",
-                "&7日期: &f%date%  &8|  &7时间: &f%time%"
-            ),
-            List.of("&7小队: &b%party%  &8|  &7在线: &f%online%"),
-            "&f欢迎来到 &bTeamGlowing&f，%player%",
-            18,
-            120L,
-            true,
-            DEFAULT_BORDER
-        );
     }
 }

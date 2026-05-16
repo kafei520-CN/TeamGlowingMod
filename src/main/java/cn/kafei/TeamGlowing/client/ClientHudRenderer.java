@@ -28,7 +28,9 @@ public final class ClientHudRenderer {
     private static final double MAX_ANGLE = 90.0D;
     private static final double HEIGHT_THRESHOLD = 3.0D;
     private static final int EDGE_FADE_MARGIN = 18;
-    private static final Map<String, Float> SMOOTH_POSITIONS = new HashMap<>();
+    private static final float POSITION_SMOOTHING_TIME_MS = 48.0F;
+    private static final float POSITION_SNAP_DISTANCE = 72.0F;
+    private static final Map<String, SmoothedPosition> SMOOTH_POSITIONS = new HashMap<>();
 
     private ClientHudRenderer() {
     }
@@ -84,7 +86,7 @@ public final class ClientHudRenderer {
                 continue;
             }
 
-            int targetX = projectAngleToX(relativeAngle, barLeft, BAR_WIDTH);
+            float targetX = projectAngleToX(relativeAngle, barLeft, BAR_WIDTH);
             float currentX = getSmoothedX(getEntryKey(entry), targetX);
             float alpha = getEdgeAlpha(currentX, barLeft, barLeft + BAR_WIDTH);
             int textureIndex = getTextureIndexFromDistance(Math.sqrt(distance));
@@ -149,15 +151,20 @@ public final class ClientHudRenderer {
         context.drawText(client.textRenderer, Text.literal(name), (int) x - textWidth / 2, barY - 17, color, true);
     }
 
-    private static float getSmoothedX(String key, int targetX) {
-        Float current = SMOOTH_POSITIONS.get(key);
-        if (current == null) {
-            current = (float) targetX;
-        } else {
-            current += (targetX - current) * 0.35F;
+    private static float getSmoothedX(String key, float targetX) {
+        long now = System.currentTimeMillis();
+        SmoothedPosition current = SMOOTH_POSITIONS.get(key);
+        if (current == null || Math.abs(targetX - current.x()) >= POSITION_SNAP_DISTANCE) {
+            SmoothedPosition updated = new SmoothedPosition(targetX, now);
+            SMOOTH_POSITIONS.put(key, updated);
+            return targetX;
         }
-        SMOOTH_POSITIONS.put(key, current);
-        return current;
+
+        float deltaMs = Math.max(1.0F, now - current.updatedAtMillis());
+        float smoothing = 1.0F - (float) Math.exp(-deltaMs / POSITION_SMOOTHING_TIME_MS);
+        float smoothedX = MathHelper.lerp(smoothing, current.x(), targetX);
+        SMOOTH_POSITIONS.put(key, new SmoothedPosition(smoothedX, now));
+        return smoothedX;
     }
 
     private static float getEdgeAlpha(float currentX, int barLeft, int barRight) {
@@ -191,10 +198,10 @@ public final class ClientHudRenderer {
         return relative;
     }
 
-    private static int projectAngleToX(double relativeAngle, int barLeft, int barWidth) {
+    private static float projectAngleToX(double relativeAngle, int barLeft, int barWidth) {
         double clampedAngle = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, relativeAngle));
         double normalized = (clampedAngle + MAX_ANGLE) / (MAX_ANGLE * 2.0D);
-        return barLeft + MathHelper.floor(normalized * (barWidth - 1));
+        return (float) (barLeft + normalized * (barWidth - 1));
     }
 
     private static int getTextureIndexFromDistance(double distance) {
@@ -261,5 +268,8 @@ public final class ClientHudRenderer {
             return entry.playerName().toLowerCase();
         }
         return entry.name().toLowerCase();
+    }
+
+    private record SmoothedPosition(float x, long updatedAtMillis) {
     }
 }

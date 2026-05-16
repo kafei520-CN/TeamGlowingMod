@@ -18,10 +18,12 @@ public final class PartyTabSyncService {
             for (ServerPlayerEntity onlinePlayer : viewer.getServer().getPlayerManager().getPlayerList()) {
                 PartyInfo onlinePartyInfo = partyManager.getPartyInfo(onlinePlayer.getGameProfile().getName());
                 String onlinePartyName = onlinePartyInfo == null ? "" : onlinePartyInfo.name;
+                int onlinePartyColor = onlinePartyInfo == null ? 0xFFFFFF : onlinePartyInfo.color;
                 entries.add(new PartyTabEntry(
                     onlinePlayer.getUuidAsString(),
                     onlinePlayer.getGameProfile().getName(),
                     onlinePartyName,
+                    onlinePartyColor,
                     this.getSortOrder(viewer, onlinePlayer, ownPartyName, onlinePartyName, partyManager)
                 ));
             }

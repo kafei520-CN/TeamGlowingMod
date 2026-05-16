@@ -3,6 +3,7 @@ package cn.kafei.TeamGlowing.command;
 import cn.kafei.TeamGlowing.localization.Localization;
 import cn.kafei.TeamGlowing.party.LeaveResult;
 import cn.kafei.TeamGlowing.party.Party;
+import cn.kafei.TeamGlowing.party.PartyColorHelper;
 import cn.kafei.TeamGlowing.party.PartyInfo;
 import cn.kafei.TeamGlowing.party.PartyManager;
 import cn.kafei.TeamGlowing.persistence.PartyPersistence;
@@ -33,7 +34,7 @@ public final class TeamGlowingPartyCommand {
         dispatcher.register(CommandManager.literal(literal)
             .requires(source -> true)
             .then(CommandManager.literal("create")
-                .then(CommandManager.argument("partyName", StringArgumentType.greedyString())
+                .then(CommandManager.argument("input", StringArgumentType.greedyString())
                     .executes(context -> handleCreate(context, partyManager, localization, persistence))))
             .then(CommandManager.literal("invite")
                 .then(CommandManager.argument("player", StringArgumentType.word())
@@ -63,10 +64,14 @@ public final class TeamGlowingPartyCommand {
 
     private static int handleCreate(CommandContext<ServerCommandSource> context, PartyManager partyManager, Localization localization, PartyPersistence persistence) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-        String partyName = StringArgumentType.getString(context, "partyName");
+        ParsedCreateInput parsedInput = parseCreateInput(StringArgumentType.getString(context, "input"));
+        Integer partyColor = PartyColorHelper.parse(parsedInput.colorInput());
+        if (partyColor == null) {
+            throw error(localization.translate(player, "party.error.invalid_color"));
+        }
 
         try {
-            Party party = partyManager.createParty(PartyManager.getPlayerName(player), partyName);
+            Party party = partyManager.createParty(PartyManager.getPlayerName(player), parsedInput.partyName(), partyColor.intValue());
             persistence.save(partyManager);
             player.sendMessage(Text.literal(localization.translate(player, "party.created", party.name)), false);
             return 1;
@@ -183,6 +188,7 @@ public final class TeamGlowingPartyCommand {
         }
 
         player.sendMessage(Text.literal(localization.translate(player, "party.info.name", info.name)), false);
+        player.sendMessage(Text.literal(localization.translate(player, "party.info.color", PartyColorHelper.formatHex(info.color))), false);
         player.sendMessage(Text.literal(localization.translate(player, "party.info.leader", info.leaderName)), false);
         player.sendMessage(Text.literal(localization.translate(player, "party.info.admins", info.adminNames.isEmpty() ? "-" : String.join(", ", info.adminNames))), false);
         player.sendMessage(Text.literal(localization.translate(player, "party.info.members", String.join(", ", info.memberNames))), false);
@@ -191,6 +197,30 @@ public final class TeamGlowingPartyCommand {
 
     private static CommandSyntaxException error(String message) {
         return new SimpleCommandExceptionType(Text.literal(message)).create();
+    }
+
+    private static ParsedCreateInput parseCreateInput(String rawInput) {
+        String normalizedInput = rawInput == null ? "" : rawInput.strip();
+        if (normalizedInput.isEmpty()) {
+            return new ParsedCreateInput("", null);
+        }
+
+        String[] parts = normalizedInput.split("\\s+");
+        if (parts.length < 2) {
+            return new ParsedCreateInput(normalizedInput, null);
+        }
+
+        String lastPart = parts[parts.length - 1];
+        if (PartyColorHelper.parse(lastPart) == null) {
+            return new ParsedCreateInput(normalizedInput, null);
+        }
+
+        int colorStart = normalizedInput.lastIndexOf(lastPart);
+        String partyName = colorStart <= 0 ? normalizedInput : normalizedInput.substring(0, colorStart).stripTrailing();
+        if (partyName.isEmpty()) {
+            return new ParsedCreateInput(normalizedInput, null);
+        }
+        return new ParsedCreateInput(partyName, lastPart);
     }
 
     private static void sendInviteMessage(ServerPlayerEntity target, Localization localization, String inviterName, String partyName) {
@@ -215,5 +245,8 @@ public final class TeamGlowingPartyCommand {
             .withBold(true)
             .withClickEvent(new ClickEvent.RunCommand(command))
             .withHoverEvent(new HoverEvent.ShowText(Text.literal(hoverText))));
+    }
+
+    private record ParsedCreateInput(String partyName, String colorInput) {
     }
 }

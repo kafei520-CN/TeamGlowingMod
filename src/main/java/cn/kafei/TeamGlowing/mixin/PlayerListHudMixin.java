@@ -1,8 +1,10 @@
 package cn.kafei.TeamGlowing.mixin;
 
-import cn.kafei.TeamGlowing.client.ClientTabOverlayConfig;
-import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
 import cn.kafei.TeamGlowing.client.ClientPartyTabCache;
+import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
+import cn.kafei.TeamGlowing.client.ClientServerTabOverlayConfigCache;
+import cn.kafei.TeamGlowing.config.TabOverlayConfigDefaults;
+import cn.kafei.TeamGlowing.config.TabOverlayConfigState;
 import com.mojang.authlib.GameProfile;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +34,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerListHud.class)
 public abstract class PlayerListHudMixin {
+    @Unique
+    private static final int TEAMGLOWING_OTHER_PARTY_RIGHT_COLOR = 0x808080;
+
     @Shadow
     @Final
     private MinecraftClient client;
@@ -179,8 +184,6 @@ public abstract class PlayerListHudMixin {
             + TEAMGLOWING_PART_GAP
             + (showHeads ? TEAMGLOWING_HEAD_SIZE + TEAMGLOWING_PART_GAP : 0)
             + maxTextWidth
-            + TEAMGLOWING_PARTY_AREA_GAP
-            + teamglowing$getPartyAreaWidth()
             + TEAMGLOWING_PING_TEXT_GAP
             + Math.max(maxPingTextWidth, TEAMGLOWING_MAX_PING_TEXT_WIDTH)
             + TEAMGLOWING_PING_TEXT_GAP;
@@ -288,11 +291,13 @@ public abstract class PlayerListHudMixin {
     ) {
         int left = cellX + TEAMGLOWING_CELL_PADDING_X;
         int innerHeight = TEAMGLOWING_ROW_HEIGHT;
-
-        int iconX = left;
         int centerY = cellY + (innerHeight - TEAMGLOWING_ICON_SIZE) / 2;
+        int iconX = left;
         int color = teamglowing$getColor(entry);
-        teamglowing$renderDiamond(context, iconX, centerY, color, teamglowing$isSelf(entry));
+        boolean self = teamglowing$isSelf(entry);
+        boolean hasParty = teamglowing$hasParty(entry);
+        boolean sameParty = teamglowing$isSameParty(entry);
+        teamglowing$renderDiamond(context, iconX, centerY, color, self, sameParty, hasParty);
 
         int cursorX = iconX + TEAMGLOWING_ICON_SIZE + TEAMGLOWING_PART_GAP;
         if (showHeads) {
@@ -303,25 +308,28 @@ public abstract class PlayerListHudMixin {
 
         int pingAreaRight = cellX + cellWidth - TEAMGLOWING_CELL_PADDING_X;
         String latencyText = teamglowing$getLatencyText(entry);
-        int pingAreaLeft = pingAreaRight - TEAMGLOWING_MAX_PING_TEXT_WIDTH;
-        int partyAreaRight = pingAreaLeft - TEAMGLOWING_PING_TEXT_GAP;
-        int partyAreaLeft = partyAreaRight - teamglowing$getPartyAreaWidth();
-        int nameRight = partyAreaLeft - TEAMGLOWING_PARTY_AREA_GAP;
+        int nameRight = pingAreaRight - TEAMGLOWING_PING_TEXT_GAP - TEAMGLOWING_MAX_PING_TEXT_WIDTH;
         int nameMaxWidth = Math.max(0, nameRight - cursorX);
 
         int nameY = cellY + (TEAMGLOWING_ROW_HEIGHT - this.client.textRenderer.fontHeight) / 2;
-        Text baseName = this.getPlayerName(entry);
         String partyName = teamglowing$getPartyName(entry);
-        int baseNameWidth = Math.min(nameMaxWidth, TEAMGLOWING_MAX_PLAYER_NAME_WIDTH);
+        Text baseName = Text.literal(teamglowing$getProfileName(entry));
+        int partyWidth = partyName.isBlank() ? 0 : this.client.textRenderer.getWidth(" [" + partyName + "]");
+        int reservedPartyWidth = Math.min(nameMaxWidth, partyWidth);
+        int baseNameWidth = Math.min(Math.max(0, nameMaxWidth - reservedPartyWidth), TEAMGLOWING_MAX_NAME_WIDTH);
+        if (partyName.isBlank()) {
+            baseNameWidth = Math.min(nameMaxWidth, TEAMGLOWING_MAX_NAME_WIDTH);
+        }
         Text trimmedBaseName = teamglowing$trimStyledText(baseName, baseNameWidth);
         if (!trimmedBaseName.getString().isEmpty()) {
             context.drawTextWithShadow(this.client.textRenderer, trimmedBaseName, cursorX, nameY, TEAMGLOWING_TEXT_COLOR);
         }
-
         if (!partyName.isBlank()) {
-            Text trimmedPartySuffix = teamglowing$getTrimmedPartySuffix(partyName, teamglowing$getPartyAreaWidth());
+            int partyX = cursorX + this.client.textRenderer.getWidth(trimmedBaseName);
+            int remainingPartyWidth = Math.max(0, nameMaxWidth - this.client.textRenderer.getWidth(trimmedBaseName) - this.client.textRenderer.getWidth(" "));
+            Text trimmedPartySuffix = teamglowing$getTrimmedPartySuffix(partyName, remainingPartyWidth, teamglowing$getPartyColor(entry));
             if (!trimmedPartySuffix.getString().isEmpty()) {
-                context.drawTextWithShadow(this.client.textRenderer, trimmedPartySuffix, partyAreaLeft, nameY, TEAMGLOWING_TEXT_COLOR);
+                context.drawTextWithShadow(this.client.textRenderer, Text.literal(" ").append(trimmedPartySuffix), partyX, nameY, TEAMGLOWING_TEXT_COLOR);
             }
         }
 
@@ -355,7 +363,7 @@ public abstract class PlayerListHudMixin {
 
     @Unique
     private List<Text> teamglowing$buildConfiguredLines(boolean headerSection) {
-        ClientTabOverlayConfig.State config = ClientTabOverlayConfig.get();
+        TabOverlayConfigState config = ClientServerTabOverlayConfigCache.getOrFallback(TabOverlayConfigDefaults.createState());
         List<Text> lines = new ArrayList<>();
         if (headerSection && config.topBorderEnabled()) {
             lines.add(teamglowing$parseConfiguredText(teamglowing$replaceConfiguredText(config.topBorderText(), 0)));
@@ -433,7 +441,7 @@ public abstract class PlayerListHudMixin {
         String partyName = ClientPartyTabCache.getOwnPartyName().isBlank() ? "无" : ClientPartyTabCache.getOwnPartyName();
         String onlineCount = this.client.getNetworkHandler() == null ? "0" : Integer.toString(this.client.getNetworkHandler().getPlayerList().size());
         LocalDateTime now = LocalDateTime.now();
-        ClientTabOverlayConfig.State config = ClientTabOverlayConfig.get();
+        TabOverlayConfigState config = ClientServerTabOverlayConfigCache.getOrFallback(TabOverlayConfigDefaults.createState());
         return input
             .replace("%player%", playerName)
             .replace("%ping%", teamglowing$getSelfLatencyText())
@@ -487,7 +495,7 @@ public abstract class PlayerListHudMixin {
     }
 
     @Unique
-    private String teamglowing$getWelcomeMarquee(ClientTabOverlayConfig.State config, String playerName) {
+    private String teamglowing$getWelcomeMarquee(TabOverlayConfigState config, String playerName) {
         String template = config.welcomeText()
             .replace("%player%", playerName)
             .replace("%ping%", teamglowing$getSelfLatencyText())
@@ -563,18 +571,31 @@ public abstract class PlayerListHudMixin {
 
     @Unique
     private Text teamglowing$getDecoratedName(PlayerListEntry entry) {
-        MutableText decorated = this.getPlayerName(entry).copy();
+        MutableText decorated = Text.literal(teamglowing$getProfileName(entry));
         String partyName = teamglowing$getPartyName(entry);
         if (!partyName.isBlank()) {
-            decorated.append(Text.literal(" [" + partyName + "]").formatted(Formatting.BLUE));
+            decorated.append(Text.literal(" [" + partyName + "]").styled(style -> style.withColor(teamglowing$getPartyColor(entry))));
         }
         return decorated;
     }
 
     @Unique
     private int teamglowing$getReservedNameAreaWidth(PlayerListEntry entry) {
-        int baseWidth = Math.min(this.client.textRenderer.getWidth(this.getPlayerName(entry)), TEAMGLOWING_MAX_PLAYER_NAME_WIDTH);
+        int baseWidth = this.client.textRenderer.getWidth(teamglowing$getProfileName(entry));
+        String partyName = teamglowing$getPartyName(entry);
+        if (!partyName.isBlank()) {
+            baseWidth += this.client.textRenderer.getWidth(" [" + partyName + "]");
+        }
         return Math.min(TEAMGLOWING_MAX_NAME_WIDTH, baseWidth);
+    }
+
+    @Unique
+    private Text teamglowing$getTabDisplayName(PlayerListEntry entry) {
+        String raw = this.getPlayerName(entry).getString();
+        if (raw.startsWith("\u25c6 ")) {
+            raw = raw.substring(2);
+        }
+        return Text.literal(raw);
     }
 
     @Unique
@@ -584,6 +605,11 @@ public abstract class PlayerListHudMixin {
 
     @Unique
     private Text teamglowing$getTrimmedPartySuffix(String partyName, int maxWidth) {
+        return teamglowing$getTrimmedPartySuffix(partyName, maxWidth, 0xFFFFFF);
+    }
+
+    @Unique
+    private Text teamglowing$getTrimmedPartySuffix(String partyName, int maxWidth, int color) {
         if (partyName == null || partyName.isBlank() || maxWidth <= 0) {
             return Text.empty();
         }
@@ -594,7 +620,7 @@ public abstract class PlayerListHudMixin {
         if (trimmedSuffix.isEmpty()) {
             return Text.empty();
         }
-        return Text.literal(trimmedSuffix).formatted(Formatting.BLUE);
+        return Text.literal(trimmedSuffix).styled(style -> style.withColor(color));
     }
 
     @Unique
@@ -679,6 +705,15 @@ public abstract class PlayerListHudMixin {
     }
 
     @Unique
+    private int teamglowing$getPartyColor(PlayerListEntry entry) {
+        GameProfile profile = entry.getProfile();
+        if (profile == null) {
+            return 0xFFFFFF;
+        }
+        return ClientPartyTabCache.getPartyColor(profile.getId() == null ? null : profile.getId().toString(), profile.getName()) & 0xFFFFFF;
+    }
+
+    @Unique
     private String teamglowing$getProfileName(PlayerListEntry entry) {
         GameProfile profile = entry.getProfile();
         return profile == null || profile.getName() == null ? "" : profile.getName();
@@ -701,13 +736,29 @@ public abstract class PlayerListHudMixin {
         }
 
         String playerName = profile.getName();
-        boolean self = this.client.player != null && profile.getId() != null && profile.getId().equals(this.client.player.getUuid());
         boolean hasParty = ClientPartyTabCache.hasParty(profile.getId() == null ? null : profile.getId().toString(), playerName);
-        boolean sameParty = ClientPartyTabCache.isSameParty(profile.getId() == null ? null : profile.getId().toString(), playerName);
-        if (sameParty || (self && hasParty)) {
+        if (hasParty) {
             return ClientPlayerColorHelper.getPlayerColor(playerName) & 0xFFFFFF;
         }
         return 0xFFFFFF;
+    }
+
+    @Unique
+    private boolean teamglowing$hasParty(PlayerListEntry entry) {
+        GameProfile profile = entry.getProfile();
+        if (profile == null) {
+            return false;
+        }
+        return ClientPartyTabCache.hasParty(profile.getId() == null ? null : profile.getId().toString(), profile.getName());
+    }
+
+    @Unique
+    private boolean teamglowing$isSameParty(PlayerListEntry entry) {
+        GameProfile profile = entry.getProfile();
+        if (profile == null) {
+            return false;
+        }
+        return ClientPartyTabCache.isSameParty(profile.getId() == null ? null : profile.getId().toString(), profile.getName());
     }
 
     @Unique
@@ -723,7 +774,11 @@ public abstract class PlayerListHudMixin {
     }
 
     @Unique
-    private void teamglowing$renderDiamond(DrawContext context, int x, int y, int rgbColor, boolean self) {
+    private void teamglowing$renderDiamond(DrawContext context, int x, int y, int rgbColor, boolean self, boolean sameParty, boolean hasParty) {
+        if (hasParty && !sameParty && !self) {
+            teamglowing$renderSplitDiamond(context, x, y, 0xFFFFFFFF, 0xFF808080);
+            return;
+        }
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(x + TEAMGLOWING_ICON_SIZE * 0.5F, y + TEAMGLOWING_ICON_SIZE * 0.5F);
         context.getMatrices().mul(new Matrix3x2f().rotateLocal((float)(Math.PI / 4.0D)));
@@ -736,6 +791,26 @@ public abstract class PlayerListHudMixin {
             context.fill(0, 0, TEAMGLOWING_DIAMOND_BODY_SIZE, TEAMGLOWING_DIAMOND_BODY_SIZE, color);
         }
         context.getMatrices().popMatrix();
+    }
+
+    @Unique
+    private void teamglowing$renderSplitDiamond(DrawContext context, int x, int y, int leftColor, int rightColor) {
+        teamglowing$drawSplitDiamondRow(context, x + 2, y, 2, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 1, y + 1, 4, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x, y + 2, 6, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x, y + 3, 6, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 1, y + 4, 4, leftColor, rightColor);
+        teamglowing$drawSplitDiamondRow(context, x + 2, y + 5, 2, leftColor, rightColor);
+    }
+
+    @Unique
+    private void teamglowing$drawSplitDiamondRow(DrawContext context, int x, int y, int width, int leftColor, int rightColor) {
+        int leftWidth = (width + 1) / 2;
+        int rightWidth = width - leftWidth;
+        context.fill(x, y, x + leftWidth, y + 1, leftColor);
+        if (rightWidth > 0) {
+            context.fill(x + leftWidth, y, x + width, y + 1, rightColor);
+        }
     }
 
     @Unique

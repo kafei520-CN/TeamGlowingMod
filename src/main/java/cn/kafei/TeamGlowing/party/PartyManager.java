@@ -49,6 +49,10 @@ public class PartyManager {
     }
 
     public Party createParty(String leaderName, String partyName) {
+        return this.createParty(leaderName, partyName, PartyColorHelper.DEFAULT_COLOR);
+    }
+
+    public Party createParty(String leaderName, String partyName, int color) {
         String leaderNameKey = normalizePlayerName(leaderName);
         String normalizedName = normalizePartyName(partyName);
         if (normalizedName == null || normalizedName.isEmpty()) {
@@ -66,7 +70,7 @@ public class PartyManager {
             throw new IllegalStateException("party.error.party_exists");
         }
 
-        Party party = new Party(normalizedName, leaderNameKey, leaderName);
+        Party party = new Party(normalizedName, color, leaderNameKey, leaderName);
         this.partiesByName.put(normalizedName, party);
         this.playerPartyByName.put(leaderNameKey, normalizedName);
         this.pendingInvites.remove(leaderNameKey);
@@ -211,7 +215,7 @@ public class PartyManager {
         Collections.sort(memberNames);
 
         String leaderName = party.playerNames.get(party.leaderNameKey);
-        return new PartyInfo(party.name, leaderName == null ? party.leaderNameKey : leaderName, adminNames, memberNames);
+        return new PartyInfo(party.name, party.color, leaderName == null ? party.leaderNameKey : leaderName, adminNames, memberNames);
     }
 
     public int getTabRoleOrder(String playerName) {
@@ -239,6 +243,7 @@ public class PartyManager {
         for (Party party : this.partiesByName.values()) {
             SavedParty savedParty = new SavedParty();
             savedParty.name = party.name;
+            savedParty.color = PartyColorHelper.formatHex(party.color);
             savedParty.leaderName = party.playerNames.get(party.leaderNameKey);
             savedParty.admins = new ArrayList<>(party.adminNameKeys);
             savedParty.members = new ArrayList<>();
@@ -281,8 +286,9 @@ public class PartyManager {
 
             String leaderNameKey = normalizePlayerName(leaderName);
             String normalizedPartyName = normalizePartyName(savedParty.name);
+            Integer parsedColor = PartyColorHelper.parse(savedParty.color);
             
-            Party party = new Party(normalizedPartyName, leaderNameKey, leaderName);
+            Party party = new Party(normalizedPartyName, parsedColor == null ? PartyColorHelper.DEFAULT_COLOR : parsedColor.intValue(), leaderNameKey, leaderName);
             party.memberNameKeys.clear();
             party.adminNameKeys.clear();
             party.playerNames.clear();
