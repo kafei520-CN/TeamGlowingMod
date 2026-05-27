@@ -4,11 +4,13 @@ import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-final class ClientGuiRenderCompat {
+public final class ClientGuiRenderCompat {
     private static final Class<?> RENDER_PIPELINE_CLASS = findClass("com.mojang.blaze3d.pipeline.RenderPipeline");
     private static final Object GUI_TEXTURED_PIPELINE = findGuiTexturedPipeline();
     private static final Method MODERN_BLIT_TEXTURE = findMethod(
@@ -72,12 +74,39 @@ final class ClientGuiRenderCompat {
         float.class,
         float.class
     );
+    private static final Method DRAW_COMPONENT = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {Font.class, Component.class, int.class, int.class, int.class},
+        "drawString",
+        "method_27535",
+        "method_27534"
+    );
+    private static final Method DRAW_COMPONENT_SHADOW = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {Font.class, Component.class, int.class, int.class, int.class, boolean.class},
+        "drawString",
+        "method_51439"
+    );
+    private static final Method DRAW_STRING = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {Font.class, String.class, int.class, int.class, int.class},
+        "drawString",
+        "method_25303",
+        "method_25300"
+    );
+    private static final Method DRAW_STRING_SHADOW = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {Font.class, String.class, int.class, int.class, int.class, boolean.class},
+        "drawString",
+        "method_51433"
+    );
     private static final AtomicBoolean WARNED = new AtomicBoolean();
+    private static final AtomicBoolean TEXT_WARNED = new AtomicBoolean();
 
     private ClientGuiRenderCompat() {
     }
 
-    static void blitTexture(
+    public static void blitTexture(
         GuiGraphics context,
         ResourceLocation texture,
         int x,
@@ -112,7 +141,7 @@ final class ClientGuiRenderCompat {
         warnOnce("当前 Minecraft 版本缺少可用的 HUD 纹理绘制方法", null);
     }
 
-    static void blitSprite(GuiGraphics context, TextureAtlasSprite sprite, int x, int y, int width, int height, int argb) {
+    public static void blitSprite(GuiGraphics context, TextureAtlasSprite sprite, int x, int y, int width, int height, int argb) {
         try {
             if (GUI_TEXTURED_PIPELINE != null && MODERN_BLIT_SPRITE != null) {
                 MODERN_BLIT_SPRITE.invoke(context, GUI_TEXTURED_PIPELINE, sprite, x, y, width, height, argb);
@@ -128,6 +157,54 @@ final class ClientGuiRenderCompat {
             return;
         }
         warnOnce("当前 Minecraft 版本缺少可用的 HUD 图集精灵绘制方法", null);
+    }
+
+    public static void drawString(GuiGraphics context, Font font, Component text, int x, int y, int color) {
+        drawString(context, font, text, x, y, color, false);
+    }
+
+    public static void drawString(GuiGraphics context, Font font, Component text, int x, int y, int color, boolean shadow) {
+        try {
+            Method method = shadow
+                ? (DRAW_COMPONENT_SHADOW != null ? DRAW_COMPONENT_SHADOW : DRAW_COMPONENT)
+                : (DRAW_COMPONENT != null ? DRAW_COMPONENT : DRAW_COMPONENT_SHADOW);
+            if (method != null) {
+                if (method.getParameterCount() == 6) {
+                    method.invoke(context, font, text, x, y, color, shadow);
+                } else {
+                    method.invoke(context, font, text, x, y, color);
+                }
+                return;
+            }
+        } catch (ReflectiveOperationException exception) {
+            warnTextOnce("GUI 文字绘制兼容调用失败", exception);
+            return;
+        }
+        warnTextOnce("当前 Minecraft 版本缺少可用的 GUI 文字绘制方法", null);
+    }
+
+    public static void drawString(GuiGraphics context, Font font, String text, int x, int y, int color) {
+        drawString(context, font, text, x, y, color, false);
+    }
+
+    public static void drawString(GuiGraphics context, Font font, String text, int x, int y, int color, boolean shadow) {
+        try {
+            Method method = shadow
+                ? (DRAW_STRING_SHADOW != null ? DRAW_STRING_SHADOW : DRAW_STRING)
+                : (DRAW_STRING != null ? DRAW_STRING : DRAW_STRING_SHADOW);
+            if (method != null) {
+                if (method.getParameterCount() == 6) {
+                    method.invoke(context, font, text, x, y, color, shadow);
+                } else {
+                    method.invoke(context, font, text, x, y, color);
+                }
+                return;
+            }
+        } catch (ReflectiveOperationException exception) {
+            warnTextOnce("GUI 文字绘制兼容调用失败", exception);
+            return;
+        }
+        warnTextOnce("当前 Minecraft 版本缺少可用的 GUI 文字绘制方法", null);
     }
 
     private static Class<?> findClass(String className) {
@@ -161,8 +238,33 @@ final class ClientGuiRenderCompat {
         }
     }
 
+    private static Method findMethodByNames(Class<?> owner, Class<?>[] parameterTypes, String... names) {
+        for (Class<?> parameterType : parameterTypes) {
+            if (parameterType == null) {
+                return null;
+            }
+        }
+        for (String name : names) {
+            try {
+                return owner.getMethod(name, parameterTypes);
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+        return null;
+    }
+
     private static void warnOnce(String message, Throwable throwable) {
         if (WARNED.compareAndSet(false, true)) {
+            if (throwable == null) {
+                TeamGlowingConstants.LOGGER.warn(message);
+            } else {
+                TeamGlowingConstants.LOGGER.warn(message, throwable);
+            }
+        }
+    }
+
+    private static void warnTextOnce(String message, Throwable throwable) {
+        if (TEXT_WARNED.compareAndSet(false, true)) {
             if (throwable == null) {
                 TeamGlowingConstants.LOGGER.warn(message);
             } else {

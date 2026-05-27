@@ -2,8 +2,8 @@ package cn.kafei.TeamGlowing.mixin;
 
 import cn.kafei.TeamGlowing.client.ClientPartyTabCache;
 import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
+import cn.kafei.TeamGlowing.client.ClientGuiPoseCompat;
 import cn.kafei.TeamGlowing.platform.TeamGlowingPlatforms;
-import com.mojang.math.Axis;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -103,9 +103,9 @@ public abstract class ChatHudMixin {
         double chatOpacity = this.minecraft.options.chatOpacity().get();
         boolean hasChatHeads = TeamGlowingPlatforms.get().isModLoaded("chat_heads");
 
-        context.pose().pushPose();
-        context.pose().translate(4.0F, this.minecraft.getWindow().getGuiScaledHeight() - 40.0F, 0.0F);
-        context.pose().scale((float) chatScale, (float) chatScale, 1.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, 4.0F, this.minecraft.getWindow().getGuiScaledHeight() - 40.0F, 0.0F);
+        ClientGuiPoseCompat.scale(context, (float) chatScale, (float) chatScale, 1.0F);
 
         for (int lineIndex = 0; lineIndex + this.chatScrollbarPos < this.trimmedMessages.size() && lineIndex < visibleLineCount; lineIndex++) {
             GuiMessage.Line line = this.trimmedMessages.get(lineIndex + this.chatScrollbarPos);
@@ -134,7 +134,7 @@ public abstract class ChatHudMixin {
             teamglowing$renderDiamond(context, renderOffsetX, y, marker.color(), marker.self(), marker.sameParty(), marker.hasParty(), alpha / 255.0F);
         }
 
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
     }
 
     @Unique
@@ -177,28 +177,28 @@ public abstract class ChatHudMixin {
             return;
         }
 
-        context.pose().pushPose();
-        context.pose().translate(x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, 0.0F);
-        context.pose().mulPose(Axis.ZP.rotationDegrees(45.0F));
-        context.pose().translate(-TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.rotateZDegrees(context, 45.0F);
+        ClientGuiPoseCompat.translate(context, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, 0.0F);
         if (self) {
             teamglowing$fillDiamondFrame(context, 0, 0, 6, fullColor);
             context.fill(2, 2, 4, 4, fullColor);
         } else {
             context.fill(0, 0, 6, 6, fullColor);
         }
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
     }
 
     @Unique
     private void teamglowing$renderSplitDiamond(GuiGraphics context, int x, int y, int leftColor, int rightColor) {
-        context.pose().pushPose();
-        context.pose().translate(x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, 0.0F);
-        context.pose().mulPose(Axis.ZP.rotationDegrees(45.0F));
-        context.pose().translate(-TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, x + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, y + TEAMGLOWING_CHAT_ICON_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.rotateZDegrees(context, 45.0F);
+        ClientGuiPoseCompat.translate(context, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, -TEAMGLOWING_CHAT_DIAMOND_SIZE * 0.5F, 0.0F);
         context.fill(0, 0, 3, 6, leftColor);
         context.fill(3, 0, 6, 6, rightColor);
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
     }
 
     @Unique

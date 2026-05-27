@@ -1,11 +1,12 @@
 package cn.kafei.TeamGlowing.mixin;
 
 import cn.kafei.TeamGlowing.client.ClientPartyTabCache;
+import cn.kafei.TeamGlowing.client.ClientGuiPoseCompat;
+import cn.kafei.TeamGlowing.client.ClientGuiRenderCompat;
 import cn.kafei.TeamGlowing.client.ClientPlayerColorHelper;
 import cn.kafei.TeamGlowing.client.ClientServerTabOverlayConfigCache;
 import cn.kafei.TeamGlowing.config.TabOverlayConfigDefaults;
 import cn.kafei.TeamGlowing.config.TabOverlayConfigState;
-import com.mojang.math.Axis;
 import com.mojang.authlib.GameProfile;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -242,7 +243,7 @@ public abstract class PlayerListHudMixin {
                 teamglowing$renderHeaderBand(context, x + 6, Math.max(0, totalWidth - 12), lineY, TEAMGLOWING_WELCOME_BAND_BACKGROUND, TEAMGLOWING_WELCOME_BAND_ACCENT);
             }
             Component line = lines.get(i);
-            context.drawString(this.minecraft.font, line, scaledWindowWidth / 2 - this.minecraft.font.width(line) / 2, lineY, TEAMGLOWING_TEXT_COLOR);
+            ClientGuiRenderCompat.drawString(context, this.minecraft.font, line, scaledWindowWidth / 2 - this.minecraft.font.width(line) / 2, lineY, TEAMGLOWING_TEXT_COLOR);
         }
         return y + headerHeight + 1;
     }
@@ -279,7 +280,7 @@ public abstract class PlayerListHudMixin {
 
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
-            context.drawString(this.minecraft.font, line, scaledWindowWidth / 2 - this.minecraft.font.width(line) / 2, y + i * this.minecraft.font.lineHeight, TEAMGLOWING_TEXT_COLOR);
+            ClientGuiRenderCompat.drawString(context, this.minecraft.font, line, scaledWindowWidth / 2 - this.minecraft.font.width(line) / 2, y + i * this.minecraft.font.lineHeight, TEAMGLOWING_TEXT_COLOR);
         }
     }
 
@@ -327,14 +328,14 @@ public abstract class PlayerListHudMixin {
         }
         Component trimmedBaseName = teamglowing$trimStyledText(baseName, baseNameWidth);
         if (!trimmedBaseName.getString().isEmpty()) {
-            context.drawString(this.minecraft.font, trimmedBaseName, cursorX, nameY, TEAMGLOWING_TEXT_COLOR);
+            ClientGuiRenderCompat.drawString(context, this.minecraft.font, trimmedBaseName, cursorX, nameY, TEAMGLOWING_TEXT_COLOR);
         }
         if (!partyName.isBlank()) {
             int partyX = cursorX + this.minecraft.font.width(trimmedBaseName);
             int remainingPartyWidth = Math.max(0, nameMaxWidth - this.minecraft.font.width(trimmedBaseName) - this.minecraft.font.width(" "));
             Component trimmedPartySuffix = teamglowing$getTrimmedPartySuffix(partyName, remainingPartyWidth, teamglowing$getPartyColor(entry));
             if (!trimmedPartySuffix.getString().isEmpty()) {
-                context.drawString(this.minecraft.font, Component.literal(" ").append(trimmedPartySuffix), partyX, nameY, TEAMGLOWING_TEXT_COLOR);
+                ClientGuiRenderCompat.drawString(context, this.minecraft.font, Component.literal(" ").append(trimmedPartySuffix), partyX, nameY, TEAMGLOWING_TEXT_COLOR);
             }
         }
 
@@ -342,7 +343,7 @@ public abstract class PlayerListHudMixin {
             String trimmedLatency = teamglowing$trimStringToWidth(latencyText, TEAMGLOWING_MAX_PING_TEXT_WIDTH);
             if (!trimmedLatency.isEmpty()) {
                 int pingTextX = pingAreaRight - this.minecraft.font.width(trimmedLatency);
-                context.drawString(this.minecraft.font, trimmedLatency, pingTextX, nameY, TEAMGLOWING_SECONDARY_TEXT_COLOR);
+                ClientGuiRenderCompat.drawString(context, this.minecraft.font, trimmedLatency, pingTextX, nameY, TEAMGLOWING_SECONDARY_TEXT_COLOR);
             }
         }
     }
@@ -784,10 +785,10 @@ public abstract class PlayerListHudMixin {
             teamglowing$renderSplitDiamond(context, x, y, 0xFFFFFFFF, 0xFF808080);
             return;
         }
-        context.pose().pushPose();
-        context.pose().translate(x + TEAMGLOWING_ICON_SIZE * 0.5F, y + TEAMGLOWING_ICON_SIZE * 0.5F, 0.0F);
-        context.pose().mulPose(Axis.ZP.rotationDegrees(45.0F));
-        context.pose().translate(-TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, x + TEAMGLOWING_ICON_SIZE * 0.5F, y + TEAMGLOWING_ICON_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.rotateZDegrees(context, 45.0F);
+        ClientGuiPoseCompat.translate(context, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, 0.0F);
         int color = 0xFF000000 | rgbColor;
         if (self) {
             teamglowing$fillDiamondFrame(context, 0, 0, TEAMGLOWING_DIAMOND_BODY_SIZE, color);
@@ -795,18 +796,18 @@ public abstract class PlayerListHudMixin {
         } else {
             context.fill(0, 0, TEAMGLOWING_DIAMOND_BODY_SIZE, TEAMGLOWING_DIAMOND_BODY_SIZE, color);
         }
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
     }
 
     @Unique
     private void teamglowing$renderSplitDiamond(GuiGraphics context, int x, int y, int leftColor, int rightColor) {
-        context.pose().pushPose();
-        context.pose().translate(x + TEAMGLOWING_ICON_SIZE * 0.5F, y + TEAMGLOWING_ICON_SIZE * 0.5F, 0.0F);
-        context.pose().mulPose(Axis.ZP.rotationDegrees(45.0F));
-        context.pose().translate(-TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, x + TEAMGLOWING_ICON_SIZE * 0.5F, y + TEAMGLOWING_ICON_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.rotateZDegrees(context, 45.0F);
+        ClientGuiPoseCompat.translate(context, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, -TEAMGLOWING_DIAMOND_BODY_SIZE * 0.5F, 0.0F);
         context.fill(0, 0, 3, 6, leftColor);
         context.fill(3, 0, 6, 6, rightColor);
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
     }
 
     @Unique

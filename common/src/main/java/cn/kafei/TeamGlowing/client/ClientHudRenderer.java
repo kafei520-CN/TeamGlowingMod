@@ -184,7 +184,7 @@ public final class ClientHudRenderer {
         Minecraft client = Minecraft.getInstance();
         int textWidth = client.font.width(name);
         int color = ((int) (alpha * 255.0F) << 24) | 0xFFFFFF;
-        context.drawString(client.font, Component.literal(name), (int) x - textWidth / 2, barY - 17, color, true);
+        ClientGuiRenderCompat.drawString(context, client.font, Component.literal(name), (int) x - textWidth / 2, barY - 17, color, true);
     }
 
     private static float getSmoothedX(String key, float targetX) {

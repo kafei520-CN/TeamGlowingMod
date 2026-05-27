@@ -2,7 +2,6 @@ package cn.kafei.TeamGlowing.client;
 
 import cn.kafei.TeamGlowing.marker.SharedMarkerKind;
 import cn.kafei.TeamGlowing.network.TeammateWorldMarkerEntry;
-import com.mojang.math.Axis;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -146,21 +145,21 @@ public final class ClientWorldMarkerRenderer {
         int iconSize = renderItem ? ITEM_ICON_SIZE : PING_ICON_SIZE;
         float alpha = getAlpha(marker.distance());
 
-        context.pose().pushPose();
-        context.pose().translate(marker.screenX(), marker.screenY(), 0.0F);
-        context.pose().scale(marker.scale(), marker.scale(), 1.0F);
-        context.pose().translate(-iconSize / 2.0F, -iconSize / 2.0F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, marker.screenX(), marker.screenY(), 0.0F);
+        ClientGuiPoseCompat.scale(context, marker.scale(), marker.scale(), 1.0F);
+        ClientGuiPoseCompat.translate(context, -iconSize / 2.0F, -iconSize / 2.0F, 0.0F);
 
         if (renderItem) {
             context.renderItem(marker.itemStack(), 0, 0);
-            context.pose().pushPose();
-            context.pose().translate(ITEM_PING_X_OFFSET, ITEM_PING_Y_OFFSET, 0.0F);
+            ClientGuiPoseCompat.push(context);
+            ClientGuiPoseCompat.translate(context, ITEM_PING_X_OFFSET, ITEM_PING_Y_OFFSET, 0.0F);
             renderPingIcon(context, marker.color(), marker.self(), alpha);
-            context.pose().popPose();
+            ClientGuiPoseCompat.pop(context);
         } else {
             renderPingIcon(context, marker.color(), marker.self(), alpha);
         }
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
 
         String distanceText = Mth.floor(marker.distance()) + "m";
         int distanceWidth = client.font.width(distanceText);
@@ -181,12 +180,12 @@ public final class ClientWorldMarkerRenderer {
         int nameY = Math.round(marker.screenY()) + pingPixelSize / 2 + ENTITY_ICON_GAP;
         int distanceY = nameY + Math.round(9.0F * ENTITY_NAME_TEXT_SCALE) + 1;
 
-        context.pose().pushPose();
-        context.pose().translate(marker.screenX(), marker.screenY() - pingPixelSize / 2.0F, 0.0F);
-        context.pose().scale(marker.scale(), marker.scale(), 1.0F);
-        context.pose().translate(-PING_ICON_SIZE / 2.0F, -PING_ICON_SIZE / 2.0F, 0.0F);
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, marker.screenX(), marker.screenY() - pingPixelSize / 2.0F, 0.0F);
+        ClientGuiPoseCompat.scale(context, marker.scale(), marker.scale(), 1.0F);
+        ClientGuiPoseCompat.translate(context, -PING_ICON_SIZE / 2.0F, -PING_ICON_SIZE / 2.0F, 0.0F);
         renderPingIcon(context, marker.color(), marker.self(), alpha);
-        context.pose().popPose();
+        ClientGuiPoseCompat.pop(context);
 
         drawScaledText(
             context,
@@ -210,9 +209,9 @@ public final class ClientWorldMarkerRenderer {
 
     private static void renderPingIcon(GuiGraphics context, int color, boolean self, float alpha) {
         int fullColor = withAlpha(color, alpha);
-        context.pose().translate(PING_ICON_SIZE * 0.5F, PING_ICON_SIZE * 0.5F, 0.0F);
-        context.pose().mulPose(Axis.ZP.rotationDegrees(45.0F));
-        context.pose().translate(-PING_DIAMOND_SIZE * 0.5F, -PING_DIAMOND_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.translate(context, PING_ICON_SIZE * 0.5F, PING_ICON_SIZE * 0.5F, 0.0F);
+        ClientGuiPoseCompat.rotateZDegrees(context, 45.0F);
+        ClientGuiPoseCompat.translate(context, -PING_DIAMOND_SIZE * 0.5F, -PING_DIAMOND_SIZE * 0.5F, 0.0F);
         if (self) {
             fillDiamondFrame(context, 0, 0, 6, fullColor);
             context.fill(2, 2, 4, 4, fullColor);
@@ -254,11 +253,11 @@ public final class ClientWorldMarkerRenderer {
         int color,
         float scale
     ) {
-        context.pose().pushPose();
-        context.pose().translate(x, y, 0.0F);
-        context.pose().scale(scale, scale, 1.0F);
-        context.drawString(client.font, text, 0, 0, color, true);
-        context.pose().popPose();
+        ClientGuiPoseCompat.push(context);
+        ClientGuiPoseCompat.translate(context, x, y, 0.0F);
+        ClientGuiPoseCompat.scale(context, scale, scale, 1.0F);
+        ClientGuiRenderCompat.drawString(context, client.font, text, 0, 0, color, true);
+        ClientGuiPoseCompat.pop(context);
     }
 
     private static float getFocalLength(Minecraft client, int screenHeight) {
