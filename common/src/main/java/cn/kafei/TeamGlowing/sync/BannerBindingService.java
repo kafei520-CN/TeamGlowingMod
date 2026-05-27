@@ -52,11 +52,11 @@ public final class BannerBindingService {
 
     public InteractionResult handleUseBlock(ServerPlayer player, Level world, InteractionHand hand, BlockHitResult hitResult) {
         if (player == null || world.isClientSide() || hand != InteractionHand.MAIN_HAND) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
         if (!(world.getBlockState(hitResult.getBlockPos()).getBlock() instanceof AbstractBannerBlock)
             || !(world.getBlockEntity(hitResult.getBlockPos()) instanceof BannerBlockEntity bannerBlockEntity)) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
 
         BannerMarker marker = this.createMarker(player, world, hitResult, bannerBlockEntity);
@@ -71,15 +71,15 @@ public final class BannerBindingService {
         if (stack.is(Items.COMPASS)) {
             return this.handleSneakingLocatorBanner(player, marker);
         }
-        return InteractionResult.PASS;
+        return InteractionResultCompat.pass();
     }
 
     public InteractionResult handleUseItem(ServerPlayer player, Level world, InteractionHand hand) {
         if (player == null || world == null || world.isClientSide() || hand != InteractionHand.MAIN_HAND || !player.isShiftKeyDown()) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
         if (isLookingAtBanner(player, world)) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
 
         ItemStack stack = player.getItemInHand(hand);
@@ -88,11 +88,11 @@ public final class BannerBindingService {
         }
         if (stack.is(Items.COMPASS)) {
             if (this.tryStartTeleport(player, stack)) {
-                return InteractionResult.SUCCESS;
+                return InteractionResultCompat.success();
             }
             return this.handleSneakingLocatorCompass(player);
         }
-        return InteractionResult.PASS;
+        return InteractionResultCompat.pass();
     }
 
     public void handleBannerBroken(Level world, BlockPos pos) {
@@ -166,62 +166,62 @@ public final class BannerBindingService {
         try {
             if (this.partyManager.isPartyBanner(marker)) {
                 this.sendClientPartyBannerToggle(player, marker);
-                return InteractionResult.SUCCESS;
+                return InteractionResultCompat.success();
             }
             this.partyManager.setPartyBanner(PartyManager.getPlayerName(player), marker);
             this.persistence.save(this.partyManager);
             player.displayClientMessage(Component.literal(this.localization.translate(player, "party.banner.bound", marker.name())), true);
-            return InteractionResult.SUCCESS;
+            return InteractionResultCompat.success();
         } catch (IllegalStateException exception) {
             player.displayClientMessage(Component.literal(this.localization.translate(player, exception.getMessage())), true);
-            return InteractionResult.FAIL;
+            return InteractionResultCompat.fail();
         }
     }
 
     private InteractionResult handleSneakingPartyCompass(ServerPlayer player) {
         BannerMarker marker = this.partyManager.getOwnedPartyBanner(PartyManager.getPlayerName(player));
         if (marker == null) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
         this.sendClientPartyBannerToggle(player, marker);
-        return InteractionResult.SUCCESS;
+        return InteractionResultCompat.success();
     }
 
     private InteractionResult handleSneakingLocatorBanner(ServerPlayer player, BannerMarker marker) {
         try {
             if (this.partyManager.isTrackedLocatorBanner(PartyManager.getPlayerName(player), marker)) {
                 this.sendClientLocatorBannersToggle(player);
-                return InteractionResult.SUCCESS;
+                return InteractionResultCompat.success();
             }
             this.partyManager.setLocatorBanner(PartyManager.getPlayerName(player), marker);
             this.persistence.save(this.partyManager);
             player.displayClientMessage(Component.literal(this.localization.translate(player, "party.locator_banner.bound", marker.name())), true);
-            return InteractionResult.SUCCESS;
+            return InteractionResultCompat.success();
         } catch (IllegalStateException exception) {
             player.displayClientMessage(Component.literal(this.localization.translate(player, exception.getMessage())), true);
-            return InteractionResult.FAIL;
+            return InteractionResultCompat.fail();
         }
     }
 
     private InteractionResult handleSneakingLocatorCompass(ServerPlayer player) {
         List<BannerMarker> markers = this.partyManager.getAllLocatorBanners(PartyManager.getPlayerName(player));
         if (markers.isEmpty()) {
-            return InteractionResult.PASS;
+            return InteractionResultCompat.pass();
         }
         this.sendClientLocatorBannersToggle(player, markers);
-        return InteractionResult.SUCCESS;
+        return InteractionResultCompat.success();
     }
 
     private InteractionResult handleDirectHide(ServerPlayer player, BannerMarker marker) {
         if (this.partyManager.isPartyBanner(marker)) {
             this.sendClientPartyBannerToggle(player, marker);
-            return InteractionResult.SUCCESS;
+            return InteractionResultCompat.success();
         }
         if (this.partyManager.isTrackedLocatorBanner(PartyManager.getPlayerName(player), marker)) {
             this.sendClientLocatorBannerToggle(player, marker);
-            return InteractionResult.SUCCESS;
+            return InteractionResultCompat.success();
         }
-        return InteractionResult.PASS;
+        return InteractionResultCompat.pass();
     }
 
     private boolean tryStartTeleport(ServerPlayer player, ItemStack stack) {
