@@ -33,6 +33,14 @@ processResources {
     inputs.property 'minecraft_version_range', rootProject.fabric_minecraft_version_range
     inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
 
+    filesMatching('teamglowing.mixins.json') {
+        filter { String line ->
+            line.contains('"compatibilityLevel"')
+                ? line + System.lineSeparator() + '  "refmap": "teamglowing.refmap.json",'
+                : line
+        }
+    }
+
     filesMatching('fabric.mod.json') {
         expand(
             version: project.version,
