@@ -13,66 +13,111 @@ import net.minecraft.resources.ResourceLocation;
 public final class ClientGuiRenderCompat {
     private static final Class<?> RENDER_PIPELINE_CLASS = findClass("com.mojang.blaze3d.pipeline.RenderPipeline");
     private static final Object GUI_TEXTURED_PIPELINE = findGuiTexturedPipeline();
-    private static final Method MODERN_BLIT_TEXTURE = findMethod(
+    private static final Method MODERN_BLIT_TEXTURE = findMethodByNames(
         GuiGraphics.class,
+        new Class<?>[] {
+            RENDER_PIPELINE_CLASS,
+            ResourceLocation.class,
+            int.class,
+            int.class,
+            float.class,
+            float.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class
+        },
         "blit",
-        RENDER_PIPELINE_CLASS,
-        ResourceLocation.class,
-        int.class,
-        int.class,
-        float.class,
-        float.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class
+        "method_25291"
     );
-    private static final Method MODERN_BLIT_SPRITE = findMethod(
+    private static final Method MODERN_BLIT_SPRITE = findMethodByNames(
         GuiGraphics.class,
+        new Class<?>[] {
+            RENDER_PIPELINE_CLASS,
+            TextureAtlasSprite.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class
+        },
         "blitSprite",
-        RENDER_PIPELINE_CLASS,
-        TextureAtlasSprite.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class
+        "method_52710"
     );
-    private static final Method LEGACY_SET_COLOR = findMethod(
+    private static final Method LEGACY_SET_COLOR = findMethodByNames(
         GuiGraphics.class,
+        new Class<?>[] {
+            float.class,
+            float.class,
+            float.class,
+            float.class
+        },
         "setColor",
-        float.class,
-        float.class,
-        float.class,
-        float.class
+        "method_51422"
     );
-    private static final Method LEGACY_BLIT_TEXTURE = findMethod(
+    private static final Method LEGACY_BLIT_TEXTURE = findMethodByNames(
         GuiGraphics.class,
+        new Class<?>[] {
+            ResourceLocation.class,
+            int.class,
+            int.class,
+            float.class,
+            float.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class
+        },
         "blit",
-        ResourceLocation.class,
-        int.class,
-        int.class,
-        float.class,
-        float.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class
+        "method_25290"
     );
-    private static final Method LEGACY_BLIT_SPRITE = findMethod(
+    private static final Method LEGACY_BLIT_SPRITE = findMethodByNames(
         GuiGraphics.class,
+        new Class<?>[] {
+            int.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class,
+            TextureAtlasSprite.class,
+            float.class,
+            float.class,
+            float.class,
+            float.class
+        },
         "blit",
-        int.class,
-        int.class,
-        int.class,
-        int.class,
-        int.class,
-        TextureAtlasSprite.class,
-        float.class,
-        float.class,
-        float.class,
-        float.class
+        "method_48465"
+    );
+    private static final Method MODERN_BLIT_TEXTURE_NO_COLOR = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {
+            RENDER_PIPELINE_CLASS,
+            ResourceLocation.class,
+            int.class,
+            int.class,
+            float.class,
+            float.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class
+        },
+        "blit",
+        "method_25290"
+    );
+    private static final Method MODERN_BLIT_SPRITE_NO_COLOR = findMethodByNames(
+        GuiGraphics.class,
+        new Class<?>[] {
+            RENDER_PIPELINE_CLASS,
+            TextureAtlasSprite.class,
+            int.class,
+            int.class,
+            int.class,
+            int.class
+        },
+        "blitSprite",
+        "method_52709"
     );
     private static final Method DRAW_COMPONENT = findMethodByNames(
         GuiGraphics.class,
@@ -124,6 +169,10 @@ public final class ClientGuiRenderCompat {
                 MODERN_BLIT_TEXTURE.invoke(context, GUI_TEXTURED_PIPELINE, texture, x, y, u, v, width, height, textureWidth, textureHeight, argb);
                 return;
             }
+            if (GUI_TEXTURED_PIPELINE != null && MODERN_BLIT_TEXTURE_NO_COLOR != null) {
+                MODERN_BLIT_TEXTURE_NO_COLOR.invoke(context, GUI_TEXTURED_PIPELINE, texture, x, y, u, v, width, height, textureWidth, textureHeight);
+                return;
+            }
             if (LEGACY_SET_COLOR != null && LEGACY_BLIT_TEXTURE != null) {
                 Color color = Color.fromArgb(argb);
                 LEGACY_SET_COLOR.invoke(context, color.red(), color.green(), color.blue(), color.alpha());
@@ -145,6 +194,10 @@ public final class ClientGuiRenderCompat {
         try {
             if (GUI_TEXTURED_PIPELINE != null && MODERN_BLIT_SPRITE != null) {
                 MODERN_BLIT_SPRITE.invoke(context, GUI_TEXTURED_PIPELINE, sprite, x, y, width, height, argb);
+                return;
+            }
+            if (GUI_TEXTURED_PIPELINE != null && MODERN_BLIT_SPRITE_NO_COLOR != null) {
+                MODERN_BLIT_SPRITE_NO_COLOR.invoke(context, GUI_TEXTURED_PIPELINE, sprite, x, y, width, height);
                 return;
             }
             if (LEGACY_BLIT_SPRITE != null) {
@@ -207,35 +260,40 @@ public final class ClientGuiRenderCompat {
         warnTextOnce("当前 Minecraft 版本缺少可用的 GUI 文字绘制方法", null);
     }
 
-    private static Class<?> findClass(String className) {
-        try {
-            return Class.forName(className);
-        } catch (ClassNotFoundException exception) {
-            return null;
+    private static Class<?> findClass(String... classNames) {
+        for (String className : classNames) {
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException ignored) {
+            }
         }
+        return null;
     }
 
     private static Object findGuiTexturedPipeline() {
         try {
-            Class<?> pipelines = Class.forName("net.minecraft.client.renderer.RenderPipelines");
-            Field field = pipelines.getField("GUI_TEXTURED");
+            Class<?> pipelines = findClass("net.minecraft.client.renderer.RenderPipelines", "net.minecraft.class_10799");
+            if (pipelines == null) {
+                return null;
+            }
+            Field field = findField(pipelines, "GUI_TEXTURED", "field_56883");
+            if (field == null) {
+                return null;
+            }
             return field.get(null);
         } catch (ReflectiveOperationException exception) {
             return null;
         }
     }
 
-    private static Method findMethod(Class<?> owner, String name, Class<?>... parameterTypes) {
-        for (Class<?> parameterType : parameterTypes) {
-            if (parameterType == null) {
-                return null;
+    private static Field findField(Class<?> owner, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            try {
+                return owner.getField(fieldName);
+            } catch (NoSuchFieldException ignored) {
             }
         }
-        try {
-            return owner.getMethod(name, parameterTypes);
-        } catch (NoSuchMethodException exception) {
-            return null;
-        }
+        return null;
     }
 
     private static Method findMethodByNames(Class<?> owner, Class<?>[] parameterTypes, String... names) {

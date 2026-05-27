@@ -11,27 +11,33 @@ import net.minecraft.network.chat.HoverEvent;
 
 final class ChatEventCompat {
     private static final Constructor<?> MODERN_RUN_COMMAND = findConstructor(
-        "net.minecraft.network.chat.ClickEvent$RunCommand",
+        new String[] {"net.minecraft.network.chat.ClickEvent$RunCommand", "net.minecraft.class_2558$class_10609"},
         String.class
     );
     private static final Constructor<?> MODERN_SHOW_TEXT = findConstructor(
-        "net.minecraft.network.chat.HoverEvent$ShowText",
+        new String[] {"net.minecraft.network.chat.HoverEvent$ShowText", "net.minecraft.class_2568$class_10613"},
         Component.class
     );
-    private static final Class<?> LEGACY_CLICK_ACTION = findClass("net.minecraft.network.chat.ClickEvent$Action");
-    private static final Class<?> LEGACY_HOVER_ACTION = findClass("net.minecraft.network.chat.HoverEvent$Action");
+    private static final Class<?> LEGACY_CLICK_ACTION = findClass(
+        "net.minecraft.network.chat.ClickEvent$Action",
+        "net.minecraft.class_2558$class_2559"
+    );
+    private static final Class<?> LEGACY_HOVER_ACTION = findClass(
+        "net.minecraft.network.chat.HoverEvent$Action",
+        "net.minecraft.class_2568$class_5247"
+    );
     private static final Constructor<?> LEGACY_CLICK_EVENT = findConstructor(
-        "net.minecraft.network.chat.ClickEvent",
+        new String[] {"net.minecraft.network.chat.ClickEvent", "net.minecraft.class_2558"},
         LEGACY_CLICK_ACTION,
         String.class
     );
     private static final Constructor<?> LEGACY_HOVER_EVENT = findConstructor(
-        "net.minecraft.network.chat.HoverEvent",
+        new String[] {"net.minecraft.network.chat.HoverEvent", "net.minecraft.class_2568"},
         LEGACY_HOVER_ACTION,
         Object.class
     );
-    private static final Object LEGACY_RUN_COMMAND_ACTION = findFieldValue(LEGACY_CLICK_ACTION, "RUN_COMMAND");
-    private static final Object LEGACY_SHOW_TEXT_ACTION = findFieldValue(LEGACY_HOVER_ACTION, "SHOW_TEXT");
+    private static final Object LEGACY_RUN_COMMAND_ACTION = findFieldValue(LEGACY_CLICK_ACTION, "RUN_COMMAND", "field_11750");
+    private static final Object LEGACY_SHOW_TEXT_ACTION = findFieldValue(LEGACY_HOVER_ACTION, "SHOW_TEXT", "field_24342");
     private static final AtomicBoolean WARNED = new AtomicBoolean();
 
     private ChatEventCompat() {
@@ -84,13 +90,13 @@ final class ChatEventCompat {
         }
     }
 
-    private static Constructor<?> findConstructor(String className, Class<?>... parameterTypes) {
+    private static Constructor<?> findConstructor(String[] classNames, Class<?>... parameterTypes) {
         for (Class<?> parameterType : parameterTypes) {
             if (parameterType == null) {
                 return null;
             }
         }
-        Class<?> owner = findClass(className);
+        Class<?> owner = findClass(classNames);
         if (owner == null) {
             return null;
         }
@@ -101,24 +107,28 @@ final class ChatEventCompat {
         }
     }
 
-    private static Class<?> findClass(String className) {
-        try {
-            return Class.forName(className);
-        } catch (ClassNotFoundException exception) {
-            return null;
+    private static Class<?> findClass(String... classNames) {
+        for (String className : classNames) {
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException ignored) {
+            }
         }
+        return null;
     }
 
-    private static Object findFieldValue(Class<?> owner, String fieldName) {
+    private static Object findFieldValue(Class<?> owner, String... fieldNames) {
         if (owner == null) {
             return null;
         }
-        try {
-            Field field = owner.getField(fieldName);
-            return field.get(null);
-        } catch (ReflectiveOperationException exception) {
-            return null;
+        for (String fieldName : fieldNames) {
+            try {
+                Field field = owner.getField(fieldName);
+                return field.get(null);
+            } catch (ReflectiveOperationException ignored) {
+            }
         }
+        return null;
     }
 
     private static void warnOnce() {
