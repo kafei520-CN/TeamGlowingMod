@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "teamglowing",
+  "version": "${version}",
+  "name": "TeamGlowing",
+  "description": "Party glow and teammate locator HUD for Fabric and NeoForge 1.21.x.",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "cn.kafei.TeamGlowing.fabric.TeamGlowingFabricMod"
+    ],
+    "client": [
+      "cn.kafei.TeamGlowing.fabric.TeamGlowingFabricClient"
+    ]
+  },
+  "mixins": [
+    "teamglowing.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "${minecraft_version_range}",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

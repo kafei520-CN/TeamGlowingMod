@@ -1,0 +1,75 @@
+plugins {
+    id 'net.neoforged.moddev' version "${neoforge_moddev_version}"
+}
+
+dependencies {
+    implementation project(':common').sourceSets.main.output
+}
+
+sourceSets {
+    main {
+        java.srcDir project(':common').file('src/main/java')
+    }
+}
+
+neoForge {
+    version = rootProject.neoforge_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = rootProject.file('run/neoforge-client')
+        }
+        server {
+            server()
+            gameDirectory = rootProject.file('run/neoforge-server')
+        }
+    }
+
+    mods {
+        create(rootProject.archives_base_name) {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+processResources {
+    from project(':common').sourceSets.main.resources
+
+    inputs.property 'version', project.version
+    inputs.property 'minecraft_version_range', rootProject.neoforge_minecraft_version_range
+    inputs.property 'neoforge_loader_version_range', rootProject.neoforge_loader_version_range
+    inputs.property 'neoforge_version_range', rootProject.neoforge_version_range
+
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(
+            version: project.version,
+            minecraft_version_range: rootProject.neoforge_minecraft_version_range,
+            neoforge_loader_version_range: rootProject.neoforge_loader_version_range,
+            neoforge_version_range: rootProject.neoforge_version_range
+        )
+    }
+}
+
+tasks.named('jar') {
+    from project(':common').sourceSets.main.output.classesDirs
+    from project(':common').sourceSets.main.output.resourcesDir
+    destinationDirectory = rootDir.toPath().resolve('build').resolve('libs_neoforge').toFile()
+}
+
+tasks.named('compileTestJava') {
+    enabled = false
+}
+
+tasks.named('test', Test) {
+    enabled = false
+}
+
+publishing {
+    publications {
+        mavenNeoForge(MavenPublication) {
+            artifactId = rootProject.archives_base_name + '-neoforge'
+            from components.java
+        }
+    }
+}

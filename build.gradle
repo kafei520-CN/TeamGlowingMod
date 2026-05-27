@@ -1,48 +1,45 @@
 plugins {
-    id 'fabric-loom' version "${loom_version}"
-    id 'maven-publish'
+    id 'java'
+    id 'idea'
 }
 
-version = project.mod_version
-group = project.maven_group
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'idea'
+    apply plugin: 'maven-publish'
 
-base {
-    archivesName = project.archives_base_name
-}
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.neoforged.net/releases/' }
+        mavenCentral()
+    }
 
-repositories {
-    mavenCentral()
-}
+    version = project.name == 'fabric'
+        ? "${rootProject.mod_version}+fabric${rootProject.mod_version_minecraft_suffix}"
+        : project.name == 'neoforge'
+            ? "${rootProject.mod_version}+neoforge${rootProject.mod_version_minecraft_suffix}"
+            : rootProject.mod_version
+    group = rootProject.maven_group
 
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-}
+    base {
+        archivesName = rootProject.archives_base_name
+    }
 
-processResources {
-    inputs.property 'version', project.version
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release = 21
+    }
 
-    filesMatching('fabric.mod.json') {
-        expand 'version': project.version
+    java {
+        withSourcesJar()
+        toolchain.languageVersion = JavaLanguageVersion.of(rootProject.java_version.toInteger())
+    }
+
+    tasks.withType(Jar).configureEach {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
-}
-
-java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-publishing {
-    publications {
-        create('mavenJava', MavenPublication) {
-            from components.java
-        }
-    }
+tasks.named('jar') {
+    enabled = false
 }

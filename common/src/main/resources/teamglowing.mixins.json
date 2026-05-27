@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "cn.kafei.TeamGlowing.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EntityAccessor"
+  ],
+  "client": [
+    "ChatHudMixin",
+    "DeathScreenMixin",
+    "EntityGlowSuppressionMixin",
+    "MinecraftPickBlockMixin",
+    "PlayerListHudMixin",
+    "SocialInteractionsPlayerListEntryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

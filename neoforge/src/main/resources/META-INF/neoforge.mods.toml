@@ -1,0 +1,29 @@
+modLoader = "javafml"
+loaderVersion = "${neoforge_loader_version_range}"
+license = "All Rights Reserved"
+issueTrackerURL = ""
+
+[[mods]]
+modId = "teamglowing"
+version = "${version}"
+displayName = "TeamGlowing"
+description = '''
+Party glow and teammate locator HUD for Fabric and NeoForge 1.21.x.
+'''
+
+[[mixins]]
+config = "teamglowing.mixins.json"
+
+[[dependencies.teamglowing]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.teamglowing]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"

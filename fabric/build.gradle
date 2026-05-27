@@ -1,0 +1,64 @@
+import net.fabricmc.loom.task.RemapJarTask
+
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.3.5'
+    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.5'
+    compileOnly 'net.fabricmc:sponge-mixin:0.15.3+mixin.0.8.7'
+    implementation project(':common').sourceSets.main.output
+}
+
+sourceSets {
+    main {
+        java.srcDir project(':common').file('src/main/java')
+    }
+}
+
+loom {
+    mixin.useLegacyMixinAp = true
+    mixin.defaultRefmapName = 'teamglowing.refmap.json'
+}
+
+processResources {
+    from project(':common').sourceSets.main.resources
+
+    inputs.property 'version', project.version
+    inputs.property 'minecraft_version_range', rootProject.fabric_minecraft_version_range
+    inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
+
+    filesMatching('fabric.mod.json') {
+        expand(
+            version: project.version,
+            minecraft_version_range: rootProject.fabric_minecraft_version_range,
+            fabric_loader_version: rootProject.fabric_loader_version
+        )
+    }
+}
+
+tasks.withType(Jar).configureEach {
+    destinationDirectory = rootDir.toPath().resolve('build').resolve('libs_fabric').toFile()
+}
+
+tasks.withType(RemapJarTask).configureEach {
+    destinationDirectory = rootDir.toPath().resolve('build').resolve('libs_fabric').toFile()
+}
+
+tasks.named('test', Test) {
+    enabled = false
+}
+
+publishing {
+    publications {
+        mavenFabric(MavenPublication) {
+            artifactId = rootProject.archives_base_name + '-fabric'
+            from components.java
+        }
+    }
+}
