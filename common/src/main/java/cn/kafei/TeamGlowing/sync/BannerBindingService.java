@@ -225,7 +225,7 @@ public final class BannerBindingService {
     }
 
     private boolean tryStartTeleport(ServerPlayer player, ItemStack stack) {
-        LodestoneTracker tracker = stack.get(DataComponents.LODESTONE_TRACKER);
+        LodestoneTracker tracker = ItemStackComponentCompat.get(stack, DataComponents.LODESTONE_TRACKER);
         if (tracker == null || tracker.target().isEmpty()) {
             return false;
         }
