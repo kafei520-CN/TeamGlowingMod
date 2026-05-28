@@ -5,9 +5,12 @@ import cn.kafei.TeamGlowing.client.ClientHudRenderer;
 import cn.kafei.TeamGlowing.client.ClientMarkerController;
 import cn.kafei.TeamGlowing.client.ClientWorldMarkerRenderer;
 import cn.kafei.TeamGlowing.client.TeamGlowingClientCommand;
+import java.lang.reflect.Modifier;
+import java.util.function.Consumer;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -28,8 +31,36 @@ public final class TeamGlowingNeoForgeClient {
         gameBus.addListener(TeamGlowingNeoForgeClient::registerClientCommands);
         gameBus.addListener(TeamGlowingNeoForgeClient::onClientTickPost);
         gameBus.addListener(TeamGlowingNeoForgeClient::onRenderGuiPost);
-        gameBus.addListener(TeamGlowingNeoForgeClient::onRenderLevelStage);
+        registerRenderLevelListener(gameBus);
         gameBus.addListener(TeamGlowingNeoForgeClient::onLoggingOut);
+    }
+
+    private static void registerRenderLevelListener(IEventBus gameBus) {
+        if (Modifier.isAbstract(RenderLevelStageEvent.class.getModifiers())) {
+            Class<? extends Event> afterEntitiesEvent = findRenderLevelStageEvent("AfterEntities");
+            if (afterEntitiesEvent != null) {
+                addRenderLevelListener(gameBus, afterEntitiesEvent);
+                return;
+            }
+        }
+        gameBus.addListener(TeamGlowingNeoForgeClient::onRenderLevelStage);
+    }
+
+    private static Class<? extends Event> findRenderLevelStageEvent(String eventName) {
+        try {
+            Class<?> eventClass = Class.forName(RenderLevelStageEvent.class.getName() + "$" + eventName);
+            if (RenderLevelStageEvent.class.isAssignableFrom(eventClass) && Event.class.isAssignableFrom(eventClass)) {
+                return eventClass.asSubclass(Event.class);
+            }
+        } catch (ClassNotFoundException ignored) {
+        }
+        return null;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void addRenderLevelListener(IEventBus gameBus, Class<? extends Event> eventClass) {
+        Consumer listener = event -> onRenderAfterEntitiesCompat((RenderLevelStageEvent) event);
+        gameBus.addListener((Class) eventClass, listener);
     }
 
     private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
@@ -59,6 +90,10 @@ public final class TeamGlowingNeoForgeClient {
         if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
             ClientWorldMarkerRenderer.render(event.getCamera());
         }
+    }
+
+    private static void onRenderAfterEntitiesCompat(RenderLevelStageEvent event) {
+        ClientWorldMarkerRenderer.render(event.getCamera());
     }
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {

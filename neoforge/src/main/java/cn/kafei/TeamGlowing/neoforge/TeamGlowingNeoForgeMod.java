@@ -2,6 +2,7 @@ package cn.kafei.TeamGlowing.neoforge;
 
 import cn.kafei.TeamGlowing.TeamGlowingCommon;
 import cn.kafei.TeamGlowing.core.TeamGlowingConstants;
+import cn.kafei.TeamGlowing.sync.InteractionResultCompat;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.Level;
@@ -96,7 +97,7 @@ public final class TeamGlowingNeoForgeMod {
     }
 
     private static void applyInteractionResult(PlayerInteractEvent event, InteractionResult result) {
-        if (result == InteractionResult.PASS) {
+        if (InteractionResultCompat.isPass(result)) {
             return;
         }
         if (event instanceof PlayerInteractEvent.RightClickBlock rightClickBlock) {
