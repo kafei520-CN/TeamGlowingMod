@@ -111,7 +111,7 @@ public final class MarkerSyncService {
             return;
         }
 
-        Entity entity = world.getEntity(targetEntityId);
+        Entity entity = ServerEntityLookupCompat.getEntity(world, targetEntityId);
         if (!(entity instanceof ItemEntity itemEntity)) {
             return;
         }
@@ -144,7 +144,7 @@ public final class MarkerSyncService {
             return;
         }
 
-        Entity entity = world.getEntity(targetEntityId);
+        Entity entity = ServerEntityLookupCompat.getEntity(world, targetEntityId);
         if (!isTrackableEntity(entity)) {
             return;
         }
@@ -202,7 +202,7 @@ public final class MarkerSyncService {
             return null;
         }
 
-        Entity entity = world.getEntity(state.trackedEntityId());
+        Entity entity = ServerEntityLookupCompat.getEntity(world, state.trackedEntityId());
         if (!(entity instanceof ItemEntity itemEntity)) {
             this.markersByOwner.remove(UUID.fromString(state.ownerPlayerId()));
             return null;
@@ -232,7 +232,7 @@ public final class MarkerSyncService {
             return null;
         }
 
-        Entity entity = world.getEntity(state.trackedEntityId());
+        Entity entity = ServerEntityLookupCompat.getEntity(world, state.trackedEntityId());
         if (!isTrackableEntity(entity)) {
             this.markersByOwner.remove(UUID.fromString(state.ownerPlayerId()));
             return null;

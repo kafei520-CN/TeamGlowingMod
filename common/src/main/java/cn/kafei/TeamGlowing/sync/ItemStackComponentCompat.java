@@ -7,7 +7,7 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 用途：兼容 1.21.x 中 ItemStack 数据组件访问方法的映射名变化。
+ * 用途：兼容 1.21.x 中 ItemStack 数据组件读取方法的映射名变化。
  */
 final class ItemStackComponentCompat {
     private static final Method GET_COMPONENT = findGetComponentMethod();
@@ -31,7 +31,7 @@ final class ItemStackComponentCompat {
     }
 
     private static Method findGetComponentMethod() {
-        for (String name : new String[] {"get", "method_57381", "method_57824"}) {
+        for (String name : new String[] {"get", "method_57824", "method_58694"}) {
             try {
                 return ItemStack.class.getMethod(name, DataComponentType.class);
             } catch (NoSuchMethodException ignored) {

@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
+@SuppressWarnings("null")
 public final class NeoForgeTeamGlowingNetwork {
     private NeoForgeTeamGlowingNetwork() {
     }

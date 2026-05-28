@@ -6,6 +6,7 @@ import net.minecraft.world.InteractionResult;
 public final class InteractionResultCompat {
     private static final InteractionResult PASS = readResult("PASS", "field_5811");
     private static final InteractionResult SUCCESS = readResult("SUCCESS", "field_5812");
+    private static final InteractionResult CONSUME = readOptionalResult("CONSUME", "field_21466", SUCCESS);
     private static final InteractionResult FAIL = readResult("FAIL", "field_5814");
 
     private InteractionResultCompat() {
@@ -17,6 +18,10 @@ public final class InteractionResultCompat {
 
     public static InteractionResult success() {
         return SUCCESS;
+    }
+
+    public static InteractionResult consume() {
+        return CONSUME;
     }
 
     public static InteractionResult fail() {
@@ -37,6 +42,15 @@ public final class InteractionResultCompat {
             return result;
         }
         throw new IllegalStateException("Missing Minecraft interaction result field: " + namedField);
+    }
+
+    private static InteractionResult readOptionalResult(String namedField, String intermediaryField, InteractionResult fallback) {
+        InteractionResult result = tryReadResult(namedField);
+        if (result != null) {
+            return result;
+        }
+        result = tryReadResult(intermediaryField);
+        return result == null ? fallback : result;
     }
 
     private static InteractionResult tryReadResult(String fieldName) {

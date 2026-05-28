@@ -25,6 +25,8 @@ import net.minecraft.world.level.block.AbstractBannerBlock;
 
 public class PartyManager {
     public static final int MAX_PARTY_NAME_CHARACTERS = 5;
+    private static final int LOCATOR_LODESTONE_MATCH_HORIZONTAL_RANGE = 8;
+    private static final int LOCATOR_LODESTONE_MATCH_VERTICAL_RANGE = 8;
 
     private final Map<String, Party> partiesByName = new HashMap<>();
     private final Map<String, String> playerPartyByName = new HashMap<>();
@@ -269,15 +271,34 @@ public class PartyManager {
             return null;
         }
         BlockPos bannerPos = lodestonePos.above();
+        BannerMarker nearestMarker = null;
+        long nearestDistanceSquared = Long.MAX_VALUE;
         for (BannerMarker marker : this.getAllLocatorBanners(playerName)) {
-            if (dimensionId.equals(marker.dimensionId())
-                && marker.x() == bannerPos.getX()
+            if (!dimensionId.equals(marker.dimensionId())) {
+                continue;
+            }
+            if (marker.x() == bannerPos.getX()
                 && marker.y() == bannerPos.getY()
                 && marker.z() == bannerPos.getZ()) {
                 return marker;
             }
+
+            int xDistance = Math.abs(marker.x() - lodestonePos.getX());
+            int yDistance = Math.abs(marker.y() - lodestonePos.getY());
+            int zDistance = Math.abs(marker.z() - lodestonePos.getZ());
+            if (xDistance > LOCATOR_LODESTONE_MATCH_HORIZONTAL_RANGE
+                || yDistance > LOCATOR_LODESTONE_MATCH_VERTICAL_RANGE
+                || zDistance > LOCATOR_LODESTONE_MATCH_HORIZONTAL_RANGE) {
+                continue;
+            }
+
+            long distanceSquared = squaredDistance(marker, lodestonePos);
+            if (distanceSquared < nearestDistanceSquared) {
+                nearestDistanceSquared = distanceSquared;
+                nearestMarker = marker;
+            }
         }
-        return null;
+        return nearestMarker;
     }
 
     public boolean isPartyBanner(BannerMarker marker) {
@@ -720,6 +741,13 @@ public class PartyManager {
             return "";
         }
         return normalizedMarker.dimensionId() + ":" + normalizedMarker.x() + ":" + normalizedMarker.y() + ":" + normalizedMarker.z();
+    }
+
+    private static long squaredDistance(BannerMarker marker, BlockPos pos) {
+        long xDistance = (long) marker.x() - pos.getX();
+        long yDistance = (long) marker.y() - pos.getY();
+        long zDistance = (long) marker.z() - pos.getZ();
+        return xDistance * xDistance + yDistance * yDistance + zDistance * zDistance;
     }
 
     private static boolean isBannerPresent(MinecraftServer server, BannerMarker marker) {

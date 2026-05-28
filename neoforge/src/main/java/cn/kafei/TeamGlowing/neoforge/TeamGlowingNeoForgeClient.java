@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
+@SuppressWarnings("null")
 public final class TeamGlowingNeoForgeClient {
     private static KeyMapping markerKeyBinding;
 

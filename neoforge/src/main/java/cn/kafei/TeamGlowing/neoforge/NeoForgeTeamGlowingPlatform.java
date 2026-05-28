@@ -8,6 +8,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+@SuppressWarnings("null")
 public enum NeoForgeTeamGlowingPlatform implements TeamGlowingPlatform {
     INSTANCE;
 

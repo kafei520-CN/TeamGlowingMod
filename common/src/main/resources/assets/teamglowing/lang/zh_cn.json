@@ -32,6 +32,12 @@
   "party.teleport.progress": "磁石传送中 {0}%",
   "party.teleport.cancelled": "传送已取消：等待期间发生位移",
   "party.teleport.failed": "传送失败：附近没有安全落点",
+  "party.teleport.failed_server": "传送失败：无法读取当前服务器",
+  "party.teleport.failed_dimension": "传送失败：无法读取指南针绑定维度 {0}",
+  "party.teleport.failed_missing_lodestone": "传送失败：指南针指向 {0} {1},{2},{3}，但该位置不是磁石",
+  "party.teleport.failed_no_banner": "传送失败：指南针指向 {0} {1},{2},{3}，附近没有已绑定普通旗帜",
+  "party.teleport.failed_no_safe_debug": "传送失败：旗帜 {0},{1},{2} / 磁石 {3},{4},{5} 附近没有安全落点",
+  "party.teleport.failed_call": "传送失败：当前加载器无法调用玩家传送方法",
   "party.teleport.completed": "已传送到 {0} 附近",
   "party.admin.added": "已将 {0} 设置为小队管理员",
   "party.admin.removed": "已取消 {0} 的小队管理员身份",
@@ -81,6 +87,10 @@
   "teamglowing.death_screen.party_respawn": "小队据点重生",
   "party.respawn.completed": "已在小队据点 {0} 附近重生",
   "party.respawn.failed": "小队据点重生失败，已按原版规则重生",
+  "party.respawn.failed_no_banner": "小队据点重生失败：当前小队没有小队旗帜",
+  "party.respawn.failed_dimension": "小队据点重生失败：无法读取旗帜所在维度 {0}",
+  "party.respawn.failed_no_safe_debug": "小队据点重生失败：旗帜 {0},{1},{2} 附近没有安全落点",
+  "party.respawn.failed_call": "小队据点重生失败：当前加载器无法调用玩家传送方法",
   "key.teamglowing.share_marker": "共享队友标记",
   "category.teamglowing": "TeamGlowing"
 }

@@ -32,6 +32,12 @@
   "party.teleport.progress": "Lodestone teleport {0}%",
   "party.teleport.cancelled": "Teleport cancelled: you moved during the wait",
   "party.teleport.failed": "Teleport failed: no safe position nearby",
+  "party.teleport.failed_server": "Teleport failed: cannot read current server",
+  "party.teleport.failed_dimension": "Teleport failed: cannot read compass dimension {0}",
+  "party.teleport.failed_missing_lodestone": "Teleport failed: compass points to {0} {1},{2},{3}, but that block is not a lodestone",
+  "party.teleport.failed_no_banner": "Teleport failed: compass points to {0} {1},{2},{3}, but no bound locator banner is nearby",
+  "party.teleport.failed_no_safe_debug": "Teleport failed: no safe position near banner {0},{1},{2} / lodestone {3},{4},{5}",
+  "party.teleport.failed_call": "Teleport failed: current loader cannot call the player teleport method",
   "party.teleport.completed": "Teleported near {0}",
   "party.admin.added": "{0} is now a party admin",
   "party.admin.removed": "{0} is no longer a party admin",
@@ -81,6 +87,10 @@
   "teamglowing.death_screen.party_respawn": "Respawn At Party Outpost",
   "party.respawn.completed": "Respawned near party outpost {0}",
   "party.respawn.failed": "Party outpost respawn failed, used vanilla respawn instead",
+  "party.respawn.failed_no_banner": "Party outpost respawn failed: your party has no party banner",
+  "party.respawn.failed_dimension": "Party outpost respawn failed: cannot read banner dimension {0}",
+  "party.respawn.failed_no_safe_debug": "Party outpost respawn failed: no safe position near banner {0},{1},{2}",
+  "party.respawn.failed_call": "Party outpost respawn failed: current loader cannot call the player teleport method",
   "key.teamglowing.share_marker": "Share Team Marker",
   "category.teamglowing": "TeamGlowing"
 }

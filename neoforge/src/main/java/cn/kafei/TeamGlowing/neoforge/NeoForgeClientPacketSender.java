@@ -3,6 +3,7 @@ package cn.kafei.TeamGlowing.neoforge;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+@SuppressWarnings("null")
 final class NeoForgeClientPacketSender {
     private NeoForgeClientPacketSender() {
     }

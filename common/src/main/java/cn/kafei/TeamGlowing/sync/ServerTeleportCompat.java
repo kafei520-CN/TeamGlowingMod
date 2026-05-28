@@ -13,7 +13,7 @@ final class ServerTeleportCompat {
     private static final Set<?> ABSOLUTE_MOVEMENT = Set.of();
     private static final Method TELEPORT_WITH_DISMOUNT = findMethod(
         ServerPlayer.class,
-        "teleportTo",
+        new String[] {"teleportTo", "method_48105"},
         ServerLevel.class,
         double.class,
         double.class,
@@ -25,7 +25,7 @@ final class ServerTeleportCompat {
     );
     private static final Method TELEPORT_LEGACY = findMethod(
         ServerPlayer.class,
-        "teleportTo",
+        new String[] {"teleportTo", "method_48105"},
         ServerLevel.class,
         double.class,
         double.class,
@@ -36,7 +36,7 @@ final class ServerTeleportCompat {
     );
     private static final Method TELEPORT_SIMPLE = findMethod(
         ServerPlayer.class,
-        "teleportTo",
+        new String[] {"teleportTo", "method_14251"},
         ServerLevel.class,
         double.class,
         double.class,
@@ -73,12 +73,14 @@ final class ServerTeleportCompat {
         return false;
     }
 
-    private static Method findMethod(Class<?> owner, String name, Class<?>... parameterTypes) {
-        try {
-            return owner.getMethod(name, parameterTypes);
-        } catch (NoSuchMethodException exception) {
-            return null;
+    private static Method findMethod(Class<?> owner, String[] names, Class<?>... parameterTypes) {
+        for (String name : names) {
+            try {
+                return owner.getMethod(name, parameterTypes);
+            } catch (NoSuchMethodException ignored) {
+            }
         }
+        return null;
     }
 
     private static boolean asBoolean(Object result) {

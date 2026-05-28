@@ -25,7 +25,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BannerBlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -54,9 +53,10 @@ public final class BannerBindingService {
         if (player == null || world.isClientSide() || hand != InteractionHand.MAIN_HAND) {
             return InteractionResultCompat.pass();
         }
-        if (!(world.getBlockState(hitResult.getBlockPos()).getBlock() instanceof AbstractBannerBlock)
-            || !(world.getBlockEntity(hitResult.getBlockPos()) instanceof BannerBlockEntity bannerBlockEntity)) {
-            return InteractionResultCompat.pass();
+        BlockPos hitPos = hitResult.getBlockPos();
+        if (!(world.getBlockState(hitPos).getBlock() instanceof AbstractBannerBlock)
+            || !(world.getBlockEntity(hitPos) instanceof BannerBlockEntity bannerBlockEntity)) {
+            return this.handleSneakingNonBannerUse(player, world, hand, hitPos);
         }
 
         BannerMarker marker = this.createMarker(player, world, hitResult, bannerBlockEntity);
@@ -83,16 +83,7 @@ public final class BannerBindingService {
         }
 
         ItemStack stack = player.getItemInHand(hand);
-        if (stack.is(Items.RECOVERY_COMPASS)) {
-            return this.handleSneakingPartyCompass(player);
-        }
-        if (stack.is(Items.COMPASS)) {
-            if (this.tryStartTeleport(player, stack)) {
-                return InteractionResultCompat.success();
-            }
-            return this.handleSneakingLocatorCompass(player);
-        }
-        return InteractionResultCompat.pass();
+        return this.handleSneakingCompassUse(player, stack, false);
     }
 
     public void handleBannerBroken(Level world, BlockPos pos) {
@@ -144,9 +135,18 @@ public final class BannerBindingService {
                 continue;
             }
 
-            Vec3 destination = findTeleportTarget(targetWorld, pending.bannerPos(), pending.target().pos());
+            Vec3 destination = resolvePendingTeleportTarget(targetWorld, pending);
             if (destination == null) {
-                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.failed")), true);
+                player.displayClientMessage(Component.literal(this.localization.translate(
+                    player,
+                    "party.teleport.failed_no_safe_debug",
+                    pending.bannerPos().getX(),
+                    pending.bannerPos().getY(),
+                    pending.bannerPos().getZ(),
+                    pending.target().pos().getX(),
+                    pending.target().pos().getY(),
+                    pending.target().pos().getZ()
+                )), true);
                 pending.bossBar().removePlayer(player);
                 iterator.remove();
                 continue;
@@ -155,7 +155,7 @@ public final class BannerBindingService {
             if (ServerTeleportCompat.teleport(player, targetWorld, destination)) {
                 player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.completed", pending.bannerName())), true);
             } else {
-                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.failed")), true);
+                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.failed_call")), true);
             }
             pending.bossBar().removePlayer(player);
             iterator.remove();
@@ -224,6 +224,37 @@ public final class BannerBindingService {
         return InteractionResultCompat.pass();
     }
 
+    /**
+     * 用途：处理潜行右键非旗帜方块时的指南针快捷操作。
+     */
+    private InteractionResult handleSneakingNonBannerUse(ServerPlayer player, Level world, InteractionHand hand, BlockPos hitPos) {
+        if (hand != InteractionHand.MAIN_HAND || !player.isShiftKeyDown()) {
+            return InteractionResultCompat.pass();
+        }
+        ItemStack stack = player.getItemInHand(hand);
+        boolean clickedLodestone = world.getBlockState(hitPos).is(Blocks.LODESTONE);
+        return this.handleSneakingCompassUse(player, stack, clickedLodestone);
+    }
+
+    /**
+     * 用途：统一处理潜行右键空气或普通方块时的指南针行为。
+     */
+    private InteractionResult handleSneakingCompassUse(ServerPlayer player, ItemStack stack, boolean allowVanillaLodestoneBinding) {
+        if (stack.is(Items.RECOVERY_COMPASS)) {
+            return this.handleSneakingPartyCompass(player);
+        }
+        if (!stack.is(Items.COMPASS)) {
+            return InteractionResultCompat.pass();
+        }
+        if (this.tryStartTeleport(player, stack)) {
+            return InteractionResultCompat.consume();
+        }
+        if (allowVanillaLodestoneBinding) {
+            return InteractionResultCompat.pass();
+        }
+        return this.handleSneakingLocatorCompass(player);
+    }
+
     private boolean tryStartTeleport(ServerPlayer player, ItemStack stack) {
         LodestoneTracker tracker = ItemStackComponentCompat.get(stack, DataComponents.LODESTONE_TRACKER);
         if (tracker == null || tracker.target().isEmpty()) {
@@ -233,15 +264,29 @@ public final class BannerBindingService {
         GlobalPos target = tracker.target().get();
         MinecraftServer server = player.getServer();
         if (server == null) {
-            return false;
+            player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.failed_server")), true);
+            return true;
         }
         ServerLevel targetWorld = server.getLevel(target.dimension());
         if (targetWorld == null) {
-            return false;
+            player.displayClientMessage(Component.literal(this.localization.translate(
+                player,
+                "party.teleport.failed_dimension",
+                target.dimension().location().toString()
+            )), true);
+            return true;
         }
         BlockPos lodestonePos = target.pos();
         if (!targetWorld.getBlockState(lodestonePos).is(Blocks.LODESTONE)) {
-            return false;
+            player.displayClientMessage(Component.literal(this.localization.translate(
+                player,
+                "party.teleport.failed_missing_lodestone",
+                target.dimension().location().toString(),
+                lodestonePos.getX(),
+                lodestonePos.getY(),
+                lodestonePos.getZ()
+            )), true);
+            return true;
         }
         BannerMarker bannerMarker = this.partyManager.findLocatorBannerForLodestone(
             PartyManager.getPlayerName(player),
@@ -249,13 +294,30 @@ public final class BannerBindingService {
             lodestonePos
         );
         if (bannerMarker == null) {
-            return false;
+            player.displayClientMessage(Component.literal(this.localization.translate(
+                player,
+                "party.teleport.failed_no_banner",
+                target.dimension().location().toString(),
+                lodestonePos.getX(),
+                lodestonePos.getY(),
+                lodestonePos.getZ()
+            )), true);
+            return true;
         }
 
         BlockPos bannerPos = bannerMarker.toBlockPos();
         Vec3 destination = findTeleportTarget(targetWorld, bannerPos, lodestonePos);
         if (destination == null) {
-            player.displayClientMessage(Component.literal(this.localization.translate(player, "party.teleport.failed")), true);
+            player.displayClientMessage(Component.literal(this.localization.translate(
+                player,
+                "party.teleport.failed_no_safe_debug",
+                bannerPos.getX(),
+                bannerPos.getY(),
+                bannerPos.getZ(),
+                lodestonePos.getX(),
+                lodestonePos.getY(),
+                lodestonePos.getZ()
+            )), true);
             return true;
         }
 
@@ -321,44 +383,28 @@ public final class BannerBindingService {
         );
     }
 
-    private static Vec3 findTeleportTarget(ServerLevel world, BlockPos bannerPos, BlockPos lodestonePos) {
-        for (int radius = 0; radius <= 2; radius++) {
-            for (int yOffset = -1; yOffset <= 1; yOffset++) {
-                for (int xOffset = -radius; xOffset <= radius; xOffset++) {
-                    for (int zOffset = -radius; zOffset <= radius; zOffset++) {
-                        if (radius > 0 && Math.abs(xOffset) != radius && Math.abs(zOffset) != radius) {
-                            continue;
-                        }
-                        BlockPos feetPos = bannerPos.offset(xOffset, yOffset, zOffset);
-                        if (feetPos.equals(bannerPos) || feetPos.equals(lodestonePos)) {
-                            continue;
-                        }
-                        if (isSafeTeleportPos(world, feetPos)) {
-                            return new Vec3(feetPos.getX() + 0.5D, feetPos.getY(), feetPos.getZ() + 0.5D);
-                        }
-                    }
-                }
+    /**
+     * 用途：优先复用倒计时开始时校验过的落点，避免传送完成时坐标二次漂移。
+     */
+    private static Vec3 resolvePendingTeleportTarget(ServerLevel world, PendingTeleport pending) {
+        if (pending.previewTarget() != null) {
+            BlockPos previewFeetPos = BlockPos.containing(pending.previewTarget().x, pending.previewTarget().y, pending.previewTarget().z);
+            if (SafeTeleportTargetFinder.isSafe(world, previewFeetPos)) {
+                return pending.previewTarget();
             }
         }
-        return null;
+        return findTeleportTarget(world, pending.bannerPos(), pending.target().pos());
     }
 
-    private static boolean isSafeTeleportPos(ServerLevel world, BlockPos feetPos) {
-        BlockPos headPos = feetPos.above();
-        BlockPos groundPos = feetPos.below();
-        return isPassable(world, feetPos)
-            && isPassable(world, headPos)
-            && isStandable(world, groundPos);
-    }
-
-    private static boolean isPassable(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        return state.getCollisionShape(world, pos).isEmpty() && world.getFluidState(pos).isEmpty();
-    }
-
-    private static boolean isStandable(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        return !state.getCollisionShape(world, pos).isEmpty() && world.getFluidState(pos).isEmpty();
+    /**
+     * 用途：在旗帜和磁石上方附近寻找可站立落点。
+     */
+    private static Vec3 findTeleportTarget(ServerLevel world, BlockPos bannerPos, BlockPos lodestonePos) {
+        Vec3 bannerTarget = SafeTeleportTargetFinder.findAround(world, bannerPos, lodestonePos);
+        if (bannerTarget != null || bannerPos.equals(lodestonePos.above())) {
+            return bannerTarget;
+        }
+        return SafeTeleportTargetFinder.findAround(world, lodestonePos.above(), lodestonePos);
     }
 
     private record PendingTeleport(

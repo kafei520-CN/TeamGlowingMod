@@ -28,7 +28,7 @@ public final class ClientWorldMarkerRenderer {
     private static final float DISTANCE_TEXT_SCALE = 0.55F;
     private static final float ENTITY_NAME_TEXT_SCALE = 0.75F;
     private static final float MIN_SCALE = 0.55F;
-    private static final float MAX_SCALE = 0.85F;
+    private static final float MAX_SCALE = 0.55F;
     private static final float MIN_ALPHA = 0.35F;
     private static final List<ProjectedMarker> PROJECTED_MARKERS = new ArrayList<>();
 

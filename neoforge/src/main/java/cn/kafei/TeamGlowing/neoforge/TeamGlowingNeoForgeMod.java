@@ -18,6 +18,7 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
+@SuppressWarnings("null")
 @Mod(TeamGlowingConstants.MODID)
 public final class TeamGlowingNeoForgeMod {
     public TeamGlowingNeoForgeMod(IEventBus modBus) {

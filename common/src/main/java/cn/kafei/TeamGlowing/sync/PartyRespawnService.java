@@ -16,7 +16,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public final class PartyRespawnService {
@@ -49,7 +48,11 @@ public final class PartyRespawnService {
         }
 
         BannerMarker marker = this.partyManager.getOwnedPartyBanner(newPlayer.getGameProfile().getName());
-        if (marker == null || newPlayer.getServer() == null) {
+        if (marker == null) {
+            newPlayer.displayClientMessage(Component.literal(this.localization.translate(newPlayer, "party.respawn.failed_no_banner")), false);
+            return;
+        }
+        if (newPlayer.getServer() == null) {
             newPlayer.displayClientMessage(Component.literal(this.localization.translate(newPlayer, "party.respawn.failed")), false);
             return;
         }
@@ -57,13 +60,19 @@ public final class PartyRespawnService {
         ResourceKey<net.minecraft.world.level.Level> worldKey = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(marker.dimensionId()));
         ServerLevel world = newPlayer.getServer().getLevel(worldKey);
         if (world == null) {
-            newPlayer.displayClientMessage(Component.literal(this.localization.translate(newPlayer, "party.respawn.failed")), false);
+            newPlayer.displayClientMessage(Component.literal(this.localization.translate(newPlayer, "party.respawn.failed_dimension", marker.dimensionId())), false);
             return;
         }
 
         Vec3 destination = findRespawnTarget(world, marker.toBlockPos());
         if (destination == null) {
-            newPlayer.displayClientMessage(Component.literal(this.localization.translate(newPlayer, "party.respawn.failed")), false);
+            newPlayer.displayClientMessage(Component.literal(this.localization.translate(
+                newPlayer,
+                "party.respawn.failed_no_safe_debug",
+                marker.x(),
+                marker.y(),
+                marker.z()
+            )), false);
             return;
         }
 
@@ -91,7 +100,11 @@ public final class PartyRespawnService {
             QueuedRespawnTeleport queued = entry.getValue();
             ServerLevel world = server.getLevel(queued.worldKey());
             if (world == null) {
-                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.respawn.failed")), false);
+                player.displayClientMessage(Component.literal(this.localization.translate(
+                    player,
+                    "party.respawn.failed_dimension",
+                    queued.worldKey().location().toString()
+                )), false);
                 iterator.remove();
                 continue;
             }
@@ -99,48 +112,14 @@ public final class PartyRespawnService {
             if (ServerTeleportCompat.teleport(player, world, queued.destination())) {
                 player.displayClientMessage(Component.literal(this.localization.translate(player, "party.respawn.completed", queued.bannerName())), false);
             } else {
-                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.respawn.failed")), false);
+                player.displayClientMessage(Component.literal(this.localization.translate(player, "party.respawn.failed_call")), false);
             }
             iterator.remove();
         }
     }
 
     private static Vec3 findRespawnTarget(ServerLevel world, BlockPos bannerPos) {
-        for (int radius = 0; radius <= 2; radius++) {
-            for (int yOffset = -1; yOffset <= 1; yOffset++) {
-                for (int xOffset = -radius; xOffset <= radius; xOffset++) {
-                    for (int zOffset = -radius; zOffset <= radius; zOffset++) {
-                        if (radius > 0 && Math.abs(xOffset) != radius && Math.abs(zOffset) != radius) {
-                            continue;
-                        }
-                        BlockPos feetPos = bannerPos.offset(xOffset, yOffset, zOffset);
-                        if (feetPos.equals(bannerPos)) {
-                            continue;
-                        }
-                        if (isSafeRespawnPos(world, feetPos)) {
-                            return new Vec3(feetPos.getX() + 0.5D, feetPos.getY(), feetPos.getZ() + 0.5D);
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean isSafeRespawnPos(ServerLevel world, BlockPos feetPos) {
-        BlockPos headPos = feetPos.above();
-        BlockPos groundPos = feetPos.below();
-        return isPassable(world, feetPos) && isPassable(world, headPos) && isStandable(world, groundPos);
-    }
-
-    private static boolean isPassable(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        return state.getCollisionShape(world, pos).isEmpty() && world.getFluidState(pos).isEmpty();
-    }
-
-    private static boolean isStandable(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        return !state.getCollisionShape(world, pos).isEmpty() && world.getFluidState(pos).isEmpty();
+        return SafeTeleportTargetFinder.findAround(world, bannerPos, bannerPos);
     }
 
     private record QueuedRespawnTeleport(
